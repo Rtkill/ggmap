@@ -145,12 +145,12 @@ export default function PlaceModal({ place, onClose, isAdminLoggedIn, onUpdatePl
     return () => { document.body.style.overflow = ''; };
   }, [place]);
 
-  if (!currentPlace) return null;
+  if (!place || !currentPlace) return null;
   const activePlace = currentPlace;
 
-  const color = CATEGORY_COLORS[place.category] ?? '#E74C3C';
-  const emoji = CATEGORY_EMOJIS[place.category] ?? '🍴';
-  const googleMapsUrl = place.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`;
+  const color = CATEGORY_COLORS[activePlace.category] ?? '#E74C3C';
+  const emoji = CATEGORY_EMOJIS[activePlace.category] ?? '🍴';
+  const googleMapsUrl = activePlace.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${activePlace.lat},${activePlace.lng}`;
 
   const renderRating = (rating: number) => {
     if (!rating || rating === 0) {
@@ -512,7 +512,7 @@ export default function PlaceModal({ place, onClose, isAdminLoggedIn, onUpdatePl
                       <div className="google-info-label">คะแนน Google Maps</div>
                       <div className="google-info-val" style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
                         <span style={{ fontSize: 18 }}>
-                          {g.google_rating ? Number(g.google_rating).toFixed(1) : (g.rating && g.rating !== place.rating ? Number(g.rating).toFixed(1) : '-')}
+                          {g.google_rating ? Number(g.google_rating).toFixed(1) : (g.rating && g.rating !== activePlace.rating ? Number(g.rating).toFixed(1) : '-')}
                         </span>
                         <span style={{ color: '#8c92b2', fontWeight: 400 }}>({g.user_ratings_total || 0} รีวิว)</span>
                       </div>
@@ -622,7 +622,7 @@ export default function PlaceModal({ place, onClose, isAdminLoggedIn, onUpdatePl
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {/* Action 1: Google Image Search for Menu Photos directly */}
                 <a 
-                  href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(place.name + ' เมนู menu รูปภาพ')}`}
+                  href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(activePlace.name + ' เมนู menu รูปภาพ')}`}
                   target="_blank" 
                   rel="noopener noreferrer" 
                   className="maps-btn"
@@ -925,7 +925,7 @@ export default function PlaceModal({ place, onClose, isAdminLoggedIn, onUpdatePl
             target="_blank"
             rel="noopener noreferrer"
             className="maps-btn"
-            id={`maps-btn-${place.id}`}
+            id={`maps-btn-${activePlace.id}`}
           >
             <ExternalLink size={18} />
             Open in Google Maps
