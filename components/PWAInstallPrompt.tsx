@@ -12,7 +12,7 @@ export default function PWAInstallPrompt() {
 
   useEffect(() => {
     // 1. Register Service Worker
-    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+    if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || process.env.NODE_ENV === 'production')) {
       navigator.serviceWorker
         .register('/sw.js')
         .then((reg) => console.log('SW registered:', reg.scope))
@@ -30,39 +30,29 @@ export default function PWAInstallPrompt() {
       return;
     }
 
-    // 3. Check if user already dismissed prompt recently
-    const dismissed = localStorage.getItem('pwa_prompt_dismissed');
-    if (dismissed) {
-      const dismissedTime = parseInt(dismissed, 10);
-      // Hide for 3 days if dismissed
-      if (Date.now() - dismissedTime < 3 * 24 * 60 * 60 * 1000) {
-        return;
-      }
-    }
-
-    // 4. Detect iOS
+    // 3. Detect mobile device
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
+    const isMobileDevice = isIosDevice || /android|mobile|touch/.test(userAgent);
     setIsIOS(isIosDevice);
 
-    if (isIosDevice) {
-      // Delay showing iOS guide so user can see main UI first
-      const timer = setTimeout(() => setShowPrompt(true), 3000);
-      return () => clearTimeout(timer);
+    // 4. Always show PWA banner after 1.5s delay on mobile devices
+    if (isMobileDevice) {
+      const timer = setTimeout(() => setShowPrompt(true), 1500);
+
+      const handleBeforeInstallPrompt = (e: Event) => {
+        e.preventDefault();
+        setDeferredPrompt(e);
+        setShowPrompt(true);
+      };
+
+      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      };
     }
-
-    // 5. Listen for Android/Chrome beforeinstallprompt event
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowPrompt(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
   }, []);
 
   const handleInstallClick = async () => {
@@ -149,32 +139,80 @@ export default function PWAInstallPrompt() {
         </button>
       </div>
 
-      {/* Android 1-Click Install Button */}
-      {!isIOS && deferredPrompt && (
-        <button
-          type="button"
-          onClick={handleInstallClick}
-          style={{
-            width: '100%',
-            padding: '10px 16px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #ffa800 0%, #ff8c00 100%)',
-            border: 'none',
-            color: '#121316',
-            fontSize: '13px',
-            fontWeight: 800,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            boxShadow: '0 4px 14px rgba(255, 168, 0, 0.3)',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          <Download size={15} />
-          <span>กดเซฟลงหน้าจอโทรศัพท์ (คลิกเดียว)</span>
-        </button>
+      {/* Android 1-Click Install Button or Guide */}
+      {!isIOS && (
+        <div>
+          {deferredPrompt ? (
+            <button
+              type="button"
+              onClick={handleInstallClick}
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #ffa800 0%, #ff8c00 100%)',
+                border: 'none',
+                color: '#121316',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                boxShadow: '0 4px 14px rgba(255, 168, 0, 0.3)',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Download size={15} />
+              <span>กดเซฟลงหน้าจอโทรศัพท์ (คลิกเดียว)</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowIOSGuide(!showIOSGuide)}
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #ffa800 0%, #ff8c00 100%)',
+                border: 'none',
+                color: '#121316',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                boxShadow: '0 4px 14px rgba(255, 168, 0, 0.3)',
+              }}
+            >
+              <Smartphone size={15} />
+              <span>ดูวิธีติดตั้งบน Android (กดเมนู 3 จุด ➔ เพิ่มลงหน้าจอ)</span>
+            </button>
+          )}
+
+          {showIOSGuide && !deferredPrompt && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: '10px 12px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                fontSize: '11.5px',
+                color: '#cbd5e1',
+                lineHeight: 1.5,
+              }}
+            >
+              <ol style={{ paddingLeft: 18, margin: 0 }}>
+                <li>กดปุ่มเมนู <strong>3 จุด (⋮)</strong> หรือปุ่ม <strong>แชร์</strong> บนเบราว์เซอร์</li>
+                <li>เลื่อนเลือก <strong>เพิ่มไปยังหน้าจอหลัก (Add to Home screen ➕)</strong></li>
+              </ol>
+            </div>
+          )}
+        </div>
       )}
 
       {/* iOS Instructions Guide Toggle */}
