@@ -776,6 +776,17 @@ export default function AdminPage() {
           </button>
           <button
             onClick={() => {
+              setIsAddingNew(true);
+              setEditingPlace(null);
+              setActiveTab('tables');
+            }}
+            className="menu-item-action"
+          >
+            <Plus size={16} />
+            <span>Add New Pin</span>
+          </button>
+          <button
+            onClick={() => {
               setActiveTab('tables');
               setIsAddingNew(false);
               setEditingPlace(null);
@@ -795,17 +806,6 @@ export default function AdminPage() {
           >
             <Tags size={16} />
             <span>Categories</span>
-          </button>
-          <button
-            onClick={() => {
-              setIsAddingNew(true);
-              setEditingPlace(null);
-              setActiveTab('tables');
-            }}
-            className="menu-item-action"
-          >
-            <Plus size={16} />
-            <span>Add New Pin</span>
           </button>
         </nav>
 
