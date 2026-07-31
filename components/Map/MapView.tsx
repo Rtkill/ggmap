@@ -14,9 +14,9 @@ interface MapViewProps {
   isAdminLoggedIn?: boolean;
 }
 
-const TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 export default function MapView({ places, selectedCategory, selectedCategories, onPlaceClick, categories, isAdminLoggedIn }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -60,7 +60,7 @@ export default function MapView({ places, selectedCategory, selectedCategories, 
 
       L.tileLayer(TILE_URL, {
         maxZoom: 19,
-        subdomains: 'abcd',
+        subdomains: ['a', 'b', 'c'],
         attribution: TILE_ATTRIBUTION,
       }).addTo(map);
 
@@ -70,6 +70,18 @@ export default function MapView({ places, selectedCategory, selectedCategories, 
       markersLayerRef.current = markersGroup;
       leafletMapRef.current = map;
       setMapReady(true);
+
+      // Force recalculate Leaflet map viewport dimensions after mount
+      setTimeout(() => {
+        if (leafletMapRef.current) {
+          leafletMapRef.current.invalidateSize();
+        }
+      }, 200);
+      setTimeout(() => {
+        if (leafletMapRef.current) {
+          leafletMapRef.current.invalidateSize();
+        }
+      }, 600);
     };
 
     initMap();

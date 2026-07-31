@@ -366,8 +366,7 @@ body {
 }
 
 .leaflet-tile-pane {
-  /* Warm creamy vintage mapping filter (Esri warm tone transformation) */
-  filter: sepia(0.25) saturate(0.85) contrast(0.95) brightness(1.02);
+  opacity: 0.95;
 }
 
 .leaflet-control-zoom {
