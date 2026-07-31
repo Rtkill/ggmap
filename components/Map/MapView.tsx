@@ -61,6 +61,12 @@ export default function MapView({ places, selectedCategory, selectedCategories, 
       // Re-check after async gap (StrictMode cleanup may have run)
       if (!isMounted || !mapRef.current) return;
 
+      // Retry if map container has not computed height yet
+      if (mapRef.current.clientHeight === 0) {
+        setTimeout(initMap, 50);
+        return;
+      }
+
       const map = L.map(mapRef.current, {
         center: [13.7563, 100.5018],
         zoom: 12,
