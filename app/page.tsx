@@ -221,6 +221,9 @@ export default function HomePage() {
 
     scopePlaces.forEach((p) => {
       counts[p.category] = (counts[p.category] ?? 0) + 1;
+      if (p.is_buffet || p.category === 'Buffet') {
+        counts['Buffet'] = (counts['Buffet'] ?? 0) + 1;
+      }
     });
     return counts;
   }, [places, selectedCountry, selectedProvince]);
@@ -273,7 +276,17 @@ export default function HomePage() {
 
       const remainingCategories = selectedCategories.filter((c) => c !== 'ยังไม่ได้ไป');
       if (remainingCategories.length > 0 && !remainingCategories.includes('All')) {
-        if (!remainingCategories.includes(p.category)) return false;
+        const isBuffetFilter = remainingCategories.includes('Buffet');
+        const normalCategories = remainingCategories.filter((c) => c !== 'Buffet');
+
+        if (isBuffetFilter) {
+          const isBuffetPlace = Boolean(p.is_buffet || p.category === 'Buffet');
+          if (!isBuffetPlace) return false;
+        }
+
+        if (normalCategories.length > 0) {
+          if (!normalCategories.includes(p.category)) return false;
+        }
       }
 
       if (query) {

@@ -1,6 +1,5 @@
 export type Category =
   | 'All'
-  | 'Buffet'
   | 'Fine Dining'
   | 'Street Food'
   | 'Bar & Cafe'
@@ -9,7 +8,6 @@ export type Category =
 
 export const CATEGORIES: Category[] = [
   'All',
-  'Buffet',
   'Fine Dining',
   'Street Food',
   'Bar & Cafe',

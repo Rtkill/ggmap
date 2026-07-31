@@ -21,16 +21,20 @@ export default function CategoryFilter({
 }: CategoryFilterProps) {
   // Combine 'All' category and database categories, filtering out categories with 0 items
   const allCategoryPill = { id: 'all', name: 'All', color: '#6C7A89', emoji: '🗺️' };
+  const buffetCategoryPill = { id: 'buffet', name: 'Buffet', color: '#E26D5C', emoji: '🍱' };
   const unvisitedCategoryPill = { id: 'unvisited', name: 'ยังไม่ได้ไป', color: '#f97316', emoji: '⏳' };
 
   const validCategories = categories.filter((cat) => {
-    if (cat.name === 'All') return true;
+    if (cat.name === 'All' || cat.name === 'Buffet') return false;
     const count = counts[cat.name] ?? 0;
     return count > 0;
   });
 
+  const buffetCount = counts['Buffet'] ?? 0;
+
   const items = [
     allCategoryPill,
+    ...(buffetCount > 0 ? [buffetCategoryPill] : []),
     ...(isAdminLoggedIn && unvisitedCount > 0 ? [unvisitedCategoryPill] : []),
     ...validCategories,
   ];
