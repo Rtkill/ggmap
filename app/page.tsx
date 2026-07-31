@@ -694,6 +694,11 @@ export default function HomePage() {
       <PlaceModal
         place={selectedPlace}
         onClose={() => setSelectedPlace(null)}
+        isAdminLoggedIn={isAdminLoggedIn}
+        onUpdatePlace={(updatedPlace) => {
+          setSelectedPlace(updatedPlace);
+          setPlaces((prev) => prev.map((p) => (p.id === updatedPlace.id ? updatedPlace : p)));
+        }}
       />
 
       <style>{`

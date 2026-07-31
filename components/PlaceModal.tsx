@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { 
-  X, Star, BookOpen, Phone, Globe, Calendar, MessageSquare, Info, ClipboardList, UtensilsCrossed, MapPin, ExternalLink, Share2, Check
+  X, Star, BookOpen, Phone, Globe, Calendar, MessageSquare, Info, ClipboardList, UtensilsCrossed, MapPin, ExternalLink, Share2, Check, Edit3, Save, Loader2
 } from 'lucide-react';
 import { Place, CATEGORY_COLORS, CATEGORY_EMOJIS } from '@/types/place';
 import VideoPlayer from './VideoPlayer';
@@ -10,6 +10,8 @@ import VideoPlayer from './VideoPlayer';
 interface PlaceModalProps {
   place: Place | null;
   onClose: () => void;
+  isAdminLoggedIn?: boolean;
+  onUpdatePlace?: (updatedPlace: Place) => void;
 }
 
 const PRICE_LABELS: Record<string, string> = {
@@ -18,18 +20,52 @@ const PRICE_LABELS: Record<string, string> = {
   '$$$': 'ราคาสูง (600฿+)',
 };
 
-export default function PlaceModal({ place, onClose }: PlaceModalProps) {
+export default function PlaceModal({ place, onClose, isAdminLoggedIn, onUpdatePlace }: PlaceModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'grub' | 'google' | 'menu' | 'reviews' | 'about'>('grub');
   const [hoursOpen, setHoursOpen] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
 
+  // Local place state to support instant live editing updates
+  const [currentPlace, setCurrentPlace] = useState<Place | null>(place);
+  const [isAdmin, setIsAdmin] = useState<boolean>(isAdminLoggedIn || false);
+
+  // Admin edit states
+  const [isEditingAdmin, setIsEditingAdmin] = useState(false);
+  const [editRating, setEditRating] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+
+  // Sync admin auth status
+  useEffect(() => {
+    if (isAdminLoggedIn !== undefined) {
+      setIsAdmin(isAdminLoggedIn);
+    } else {
+      fetch('/api/auth')
+        .then((res) => res.json())
+        .then((data) => setIsAdmin(data.authenticated))
+        .catch(() => setIsAdmin(false));
+    }
+  }, [isAdminLoggedIn]);
+
+  // Sync place when prop changes
+  useEffect(() => {
+    setCurrentPlace(place);
+    if (place) {
+      setEditRating(place.rating ? String(place.rating) : '0');
+      setEditNotes(place.personal_notes ? place.personal_notes.replace(/<br\s*\/?>/gi, '\n') : '');
+      setIsEditingAdmin(false);
+      setSaveSuccessMsg('');
+    }
+  }, [place]);
+
   const handleShare = async () => {
-    if (!place) return;
-    const shareUrl = `${window.location.origin}/place/${place.id}`;
+    if (!currentPlace) return;
+    const shareUrl = `${window.location.origin}/place/${currentPlace.id}`;
     const shareData = {
-      title: `${place.name} — Grub & Gulp Around the World`,
-      text: `พิกัดร้านเด็ด ${place.name} (${place.category}) บน Grub & Gulp Around the World`,
+      title: `${currentPlace.name} — Grub & Gulp Around the World`,
+      text: `พิกัดร้านเด็ด ${currentPlace.name} (${currentPlace.category}) บน Grub & Gulp Around the World`,
       url: shareUrl,
     };
 
@@ -47,6 +83,46 @@ export default function PlaceModal({ place, onClose }: PlaceModalProps) {
       } catch (err) {
         console.error('Clipboard copy failed:', err);
       }
+    }
+  };
+
+  const handleSaveAdminEdit = async () => {
+    if (!currentPlace) return;
+    setIsSaving(true);
+    setSaveSuccessMsg('');
+    try {
+      const parsedRating = parseFloat(editRating);
+      const finalRating = isNaN(parsedRating) ? 0 : Math.max(0, Math.min(5, parsedRating));
+
+      const res = await fetch('/api/places/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: currentPlace.id,
+          personal_notes: editNotes,
+          rating: finalRating,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.place) {
+        const updated: Place = {
+          ...currentPlace,
+          personal_notes: editNotes,
+          rating: finalRating,
+        };
+        setCurrentPlace(updated);
+        if (onUpdatePlace) onUpdatePlace(updated);
+        setIsEditingAdmin(false);
+        setSaveSuccessMsg('บันทึกการแก้ไขข้อมูลและคะแนน G&G Score เรียบร้อยแล้ว!');
+        setTimeout(() => setSaveSuccessMsg(''), 3500);
+      } else {
+        alert(data.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      }
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาด: ' + err.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -69,7 +145,8 @@ export default function PlaceModal({ place, onClose }: PlaceModalProps) {
     return () => { document.body.style.overflow = ''; };
   }, [place]);
 
-  if (!place) return null;
+  if (!currentPlace) return null;
+  const activePlace = currentPlace;
 
   const color = CATEGORY_COLORS[place.category] ?? '#E74C3C';
   const emoji = CATEGORY_EMOJIS[place.category] ?? '🍴';
@@ -103,7 +180,7 @@ export default function PlaceModal({ place, onClose }: PlaceModalProps) {
   };
 
   // Google Places data extraction
-  const g = place.google_data;
+  const g = activePlace.google_data;
 
   // About tab attributes parsing
   const hasAttribute = (attr: string): boolean => {
@@ -112,8 +189,8 @@ export default function PlaceModal({ place, onClose }: PlaceModalProps) {
   };
 
   // Clean raw HTML <br> tags in personal notes
-  const cleanedNotes = place.personal_notes
-    ? place.personal_notes.replace(/<br\s*\/?>/gi, '\n')
+  const cleanedNotes = activePlace.personal_notes
+    ? activePlace.personal_notes.replace(/<br\s*\/?>/gi, '\n')
     : '';
 
   return (
@@ -127,7 +204,7 @@ export default function PlaceModal({ place, onClose }: PlaceModalProps) {
         ref={panelRef} 
         role="dialog" 
         aria-modal="true" 
-        aria-label={place.name}
+        aria-label={activePlace.name}
         style={{ '--accent-color': color } as React.CSSProperties}
       >
         {/* Header strip */}
@@ -135,13 +212,13 @@ export default function PlaceModal({ place, onClose }: PlaceModalProps) {
           <div className="modal-header-content">
             <span className="modal-category-emoji">{emoji}</span>
             <div>
-              <h2 className="modal-title">{place.name}</h2>
+              <h2 className="modal-title">{activePlace.name}</h2>
               <div className="modal-meta">
                 <span className="modal-category-badge" style={{ backgroundColor: color }}>
-                  {place.category}
+                  {activePlace.category}
                 </span>
-                <span className="modal-price" title={PRICE_LABELS[place.price_range] ?? ''}>
-                  {place.price_range}
+                <span className="modal-price" title={PRICE_LABELS[activePlace.price_range] ?? ''}>
+                  {activePlace.price_range}
                 </span>
               </div>
             </div>
@@ -219,27 +296,160 @@ export default function PlaceModal({ place, onClose }: PlaceModalProps) {
             <div className="tab-pane-content">
               {/* Rating */}
               <div className="modal-section">
-                <div className="modal-section-label">
-                  <Star size={14} /> G&G Score
+                <div className="modal-section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Star size={14} /> G&G Score
+                  </div>
+                  {isAdmin && !isEditingAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAdmin(true)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        background: 'linear-gradient(135deg, rgba(255, 168, 0, 0.15), rgba(255, 140, 0, 0.1))',
+                        border: '1px solid rgba(255, 168, 0, 0.35)',
+                        borderRadius: '12px',
+                        padding: '3px 10px',
+                        color: '#ffa800',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(255, 168, 0, 0.1)',
+                      }}
+                    >
+                      <Edit3 size={12} /> แก้ไขข้อมูล (Super Admin)
+                    </button>
+                  )}
                 </div>
-                {renderRating(place.rating)}
+                {renderRating(activePlace.rating)}
               </div>
 
-              {/* Video (Moved UP) */}
-              {place.video_url && (
-                <div className="modal-section">
-                  <div className="modal-section-label">🎬 วิดีโอรีวิว</div>
-                  <VideoPlayer url={place.video_url} />
+              {saveSuccessMsg && (
+                <div style={{ background: 'rgba(34, 197, 94, 0.12)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: '10px', padding: '8px 12px', color: '#22c55e', fontSize: '12px', fontWeight: 700 }}>
+                  ✓ {saveSuccessMsg}
                 </div>
               )}
 
-              {/* Personal Notes */}
-              {cleanedNotes && (
-                <div className="modal-section">
-                  <div className="modal-section-label">
-                    <BookOpen size={14} /> บันทึกส่วนตัว
+              {/* Super Admin Inline Edit Form */}
+              {isAdmin && isEditingAdmin ? (
+                <div style={{ background: 'rgba(255, 168, 0, 0.04)', border: '1.5px dashed rgba(255, 168, 0, 0.4)', borderRadius: '14px', padding: '14px', marginTop: 4 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#ffa800', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Edit3 size={14} />
+                    <span>โหมดแก้ไขข้อมูลร้าน (Super Admin)</span>
                   </div>
-                  <p className="modal-notes" style={{ whiteSpace: 'pre-wrap' }}>{cleanedNotes}</p>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontSize: '12px', fontWeight: 750, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
+                      ⭐ G&G Score (0.00 – 5.00):
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="5"
+                      value={editRating}
+                      onChange={(e) => setEditRating(e.target.value)}
+                      placeholder="เช่น 4.5"
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(0, 0, 0, 0.15)',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        background: '#ffffff',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: '12px', fontWeight: 750, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
+                      📖 บันทึกส่วนตัว (Personal Notes):
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      placeholder="ระบุข้อความรีวิว/บันทึกส่วนตัวสำหรับร้านนี้..."
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(0, 0, 0, 0.15)',
+                        fontSize: '13px',
+                        fontFamily: 'inherit',
+                        background: '#ffffff',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveAdminEdit}
+                      disabled={isSaving}
+                      style={{
+                        flex: 1,
+                        padding: '9px 14px',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #ffa800, #ff8c00)',
+                        border: 'none',
+                        color: '#121316',
+                        fontSize: '12.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        boxShadow: '0 4px 12px rgba(255, 168, 0, 0.25)',
+                      }}
+                    >
+                      {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      <span>{isSaving ? 'กำลังบันทึก...' : '💾 บันทึกการแก้ไข (Super Admin)'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAdmin(false)}
+                      disabled={isSaving}
+                      style={{
+                        padding: '9px 14px',
+                        borderRadius: '10px',
+                        background: 'rgba(0,0,0,0.06)',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        color: 'var(--text-primary)',
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ยกเลิก
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Personal Notes Display */
+                <div className="modal-section">
+                  <div className="modal-section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <BookOpen size={14} /> บันทึกส่วนตัว
+                    </div>
+                  </div>
+                  <p className="modal-notes" style={{ whiteSpace: 'pre-wrap' }}>
+                    {cleanedNotes || (isAdmin ? '(ยังไม่มีบันทึกส่วนตัว — กดปุ่มแก้ไขข้อมูลด้านบนเพื่อเพิ่มบันทึก)' : 'Grub & Gulp ยังไม่ได้ไป')}
+                  </p>
+                </div>
+              )}
+
+              {/* Video (Moved UP) */}
+              {activePlace.video_url && (
+                <div className="modal-section">
+                  <div className="modal-section-label">🎬 วิดีโอรีวิว</div>
+                  <VideoPlayer url={activePlace.video_url} />
                 </div>
               )}
 
