@@ -1002,7 +1002,7 @@ export default function AdminPage() {
                 {/* Metric 3: Dominant Category */}
                 <div className="glazzed-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 750, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>หมวดหมูียอดนิยม</span>
+                    <span style={{ fontSize: '12px', fontWeight: 750, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>หมวดหมู่ยอดนิยม</span>
                     <div style={{ width: 36, height: 36, borderRadius: '10px', background: 'rgba(168, 85, 247, 0.15)', border: '1px solid rgba(168, 85, 247, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
                       {dashboardData.topCategoryEmoji}
                     </div>

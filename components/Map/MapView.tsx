@@ -14,9 +14,9 @@ interface MapViewProps {
   isAdminLoggedIn?: boolean;
 }
 
-const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 export default function MapView({ places, selectedCategory, selectedCategories, onPlaceClick, categories, isAdminLoggedIn }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -25,6 +25,18 @@ export default function MapView({ places, selectedCategory, selectedCategories, 
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+
+  // ResizeObserver to automatically resize Leaflet when container bounds change
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const observer = new ResizeObserver(() => {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.invalidateSize();
+      }
+    });
+    observer.observe(mapRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   // Initialize map
   useEffect(() => {
@@ -58,11 +70,25 @@ export default function MapView({ places, selectedCategory, selectedCategories, 
         tap: false,
       } as L.MapOptions & { tap?: boolean });
 
-      L.tileLayer(TILE_URL, {
+      // Primary CARTO Tile Layer
+      const primaryTile = L.tileLayer(TILE_URL, {
         maxZoom: 19,
-        subdomains: ['a', 'b', 'c'],
+        subdomains: 'abcd',
         attribution: TILE_ATTRIBUTION,
       }).addTo(map);
+
+      // Backup OpenStreetMap Tile Layer in case primary tiles fail
+      const backupTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        subdomains: ['a', 'b', 'c'],
+        attribution: '&copy; OpenStreetMap contributors',
+      });
+
+      primaryTile.on('tileerror', () => {
+        if (!map.hasLayer(backupTile)) {
+          backupTile.addTo(map);
+        }
+      });
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -72,16 +98,13 @@ export default function MapView({ places, selectedCategory, selectedCategories, 
       setMapReady(true);
 
       // Force recalculate Leaflet map viewport dimensions after mount
-      setTimeout(() => {
-        if (leafletMapRef.current) {
-          leafletMapRef.current.invalidateSize();
-        }
-      }, 200);
-      setTimeout(() => {
-        if (leafletMapRef.current) {
-          leafletMapRef.current.invalidateSize();
-        }
-      }, 600);
+      [100, 300, 700, 1500].forEach((delay) => {
+        setTimeout(() => {
+          if (leafletMapRef.current) {
+            leafletMapRef.current.invalidateSize();
+          }
+        }, delay);
+      });
     };
 
     initMap();
