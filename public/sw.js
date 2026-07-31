@@ -1,4 +1,4 @@
-const CACHE_NAME = 'grub-gulp-v1';
+const CACHE_NAME = 'grub-gulp-v2';
 const STATIC_ASSETS = [
   '/',
   '/logo-optimized.png',
