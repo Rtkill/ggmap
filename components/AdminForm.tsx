@@ -493,6 +493,21 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
     setMessage(null);
 
     try {
+      // Auto-translate personal notes (Thai -> English) if Thai text is present and not already translated
+      let finalPersonalNotes = form.personal_notes ? form.personal_notes.trim() : '';
+      if (finalPersonalNotes && /[ก-๙]/.test(finalPersonalNotes)) {
+        const parts = finalPersonalNotes.split(/\n\s*\n/);
+        const lastPart = parts[parts.length - 1];
+        const hasEnglishInLastPart = /[a-zA-Z]{3,}/.test(lastPart) && !/[ก-๙]/.test(lastPart);
+        if (!hasEnglishInLastPart && parts.length === 1) {
+          const { translateThaiToEnglish } = await import('@/lib/translate');
+          const translated = await translateThaiToEnglish(finalPersonalNotes);
+          if (translated) {
+            finalPersonalNotes = `${finalPersonalNotes}\n\n${translated}`;
+          }
+        }
+      }
+
       const numRating = parseFloat(form.rating) || 0;
       const finalGoogleData = googleData ? {
         ...googleData,
@@ -512,7 +527,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
           category: form.category,
           price_range: finalPriceRange,
           rating: parseFloat(form.rating) || 0,
-          personal_notes: form.personal_notes,
+          personal_notes: finalPersonalNotes,
           lat: latVal,
           lng: lngVal,
           google_maps_url: form.maps_link,
@@ -534,7 +549,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
           category: form.category,
           price_range: finalPriceRange,
           rating: parseFloat(form.rating) || 0,
-          personal_notes: form.personal_notes,
+          personal_notes: finalPersonalNotes,
           lat: latVal,
           lng: lngVal,
           google_maps_url: form.maps_link,
@@ -929,6 +944,9 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
               rows={3}
               className="form-textarea"
             />
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: 4 }}>
+              💡 พิมพ์โน้ตภาษาไทยตามปกติ เมื่อกดบันทึกหมุด ระบบจะเคาะลงมา 1 บรรทัดและแปลเป็นภาษาอังกฤษให้อัตโนมัติ (ฟรี 100%)
+            </p>
           </div>
 
           {/* Collapsible About Checklist section */}
