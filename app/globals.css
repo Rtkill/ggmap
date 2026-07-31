@@ -129,7 +129,40 @@ body {
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+.nav-search-wrapper {
+  position: relative;
+  width: 180px;
+  transition: width 0.2s ease;
+}
+
+@media (max-width: 640px) {
+  .top-nav {
+    padding: 0 10px !important;
+    gap: 4px !important;
+    height: 56px !important;
+  }
+  .nav-title {
+    font-size: 14px !important;
+  }
+  .nav-subtitle {
+    display: none !important;
+  }
+  .nav-search-wrapper {
+    width: 105px !important;
+  }
+  .nav-search-wrapper:focus-within {
+    width: 150px !important;
+  }
+  .nav-search-dropdown {
+    width: 240px !important;
+    right: -10px !important;
+  }
+  .stat-item {
+    display: none !important;
+  }
 }
 
 .nav-btn {
@@ -443,25 +476,23 @@ body {
   transform: translateY(-6px) scale(1.14);
 }
 
-/* Locate Me Button (Premium Dark contrast) */
+/* Locate Me Button (Sleek Circular Icon Button) */
 .locate-btn {
   position: absolute;
-  bottom: 130px;
+  bottom: 110px;
   right: 20px;
   z-index: 800;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   background: var(--text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #ffffff;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(18, 19, 22, 0.25);
+  box-shadow: 0 8px 20px rgba(18, 19, 22, 0.25);
   transition: all var(--transition-base);
 }
 

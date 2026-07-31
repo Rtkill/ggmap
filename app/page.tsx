@@ -325,7 +325,7 @@ export default function HomePage() {
             <span>อันดับร้านเด็ด</span>
           </Link>
           {/* Top Nav Search Box with Autocomplete Dropdown */}
-          <div className="nav-search-wrapper" style={{ position: 'relative', width: '200px' }}>
+          <div className="nav-search-wrapper">
             <div className="nav-search-input-box" style={{
               display: 'flex',
               alignItems: 'center',

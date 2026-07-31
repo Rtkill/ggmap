@@ -265,7 +265,6 @@ export default function MapView({ places, selectedCategory, selectedCategories, 
         ) : (
           <Navigation size={20} />
         )}
-        <span>{locating ? 'กำลังค้นหา...' : 'ร้านใกล้ตัว'}</span>
       </button>
 
       {/* Location Error Toast */}
