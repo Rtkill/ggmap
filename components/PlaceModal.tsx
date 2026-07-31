@@ -220,29 +220,31 @@ export default function PlaceModal({ place, onClose, isAdminLoggedIn, onUpdatePl
                 <span className="modal-price" title={PRICE_LABELS[activePlace.price_range] ?? ''}>
                   {activePlace.price_range}
                 </span>
+                {/* Share Button (Positioned right next to price) */}
+                <button
+                  onClick={handleShare}
+                  title="แชร์ร้านนี้"
+                  style={{
+                    background: 'rgba(255, 168, 0, 0.12)',
+                    border: '1px solid rgba(255, 168, 0, 0.25)',
+                    borderRadius: '50%',
+                    width: 30,
+                    height: 30,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffa800',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    marginLeft: 2,
+                  }}
+                >
+                  {copiedToast ? <Check size={14} style={{ color: '#22c55e' }} /> : <Share2 size={14} />}
+                </button>
               </div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button
-              onClick={handleShare}
-              title="แชร์ร้านนี้"
-              style={{
-                background: 'rgba(255, 168, 0, 0.12)',
-                border: '1px solid rgba(255, 168, 0, 0.25)',
-                borderRadius: '50%',
-                width: 36,
-                height: 36,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ffa800',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              {copiedToast ? <Check size={16} style={{ color: '#22c55e' }} /> : <Share2 size={16} />}
-            </button>
             <button className="modal-close-btn" onClick={onClose} aria-label="Close">
               <X size={20} />
             </button>
