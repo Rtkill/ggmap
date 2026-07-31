@@ -14,9 +14,9 @@ interface MapViewProps {
   isAdminLoggedIn?: boolean;
 }
 
-const TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+const TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const TILE_ATTRIBUTION =
-  'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom';
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 export default function MapView({ places, selectedCategory, selectedCategories, onPlaceClick, categories, isAdminLoggedIn }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -60,6 +60,7 @@ export default function MapView({ places, selectedCategory, selectedCategories, 
 
       L.tileLayer(TILE_URL, {
         maxZoom: 19,
+        subdomains: 'abcd',
         attribution: TILE_ATTRIBUTION,
       }).addTo(map);
 
