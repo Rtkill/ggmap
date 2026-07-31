@@ -32,9 +32,11 @@ export async function getPlaces(): Promise<Place[]> {
       rawRating = p.google_data.gg_score;
     }
     const finalRating = rawRating > 5 ? Number((rawRating / 2).toFixed(2)) : Number(rawRating.toFixed(2));
+    const isBuffet = Boolean(p.is_buffet || p.google_data?.is_buffet || p.category === 'Buffet');
     return {
       ...p,
       rating: finalRating,
+      is_buffet: isBuffet,
     };
   });
 }
@@ -57,11 +59,32 @@ export async function insertPlace(place: Omit<Place, 'id' | 'created_at'>): Prom
     return newPlace;
   }
 
-  const { data, error } = await supabase
+  const insertPayload: any = {
+    ...place,
+    google_data: {
+      ...(place.google_data || {}),
+      is_buffet: Boolean(place.is_buffet),
+    },
+  };
+
+  let { data, error } = await supabase
     .from('places')
-    .insert([place])
+    .insert([insertPayload])
     .select()
     .single();
+
+  if (error && insertPayload.is_buffet !== undefined) {
+    const fallbackPayload = { ...insertPayload };
+    delete fallbackPayload.is_buffet;
+    const retry = await supabase
+      .from('places')
+      .insert([fallbackPayload])
+      .select()
+      .single();
+
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) {
     console.error('Error inserting place:', error);
@@ -99,12 +122,34 @@ export async function updatePlace(
     return MOCK_PLACES[idx];
   }
 
-  const { data, error } = await supabase
+  const updatePayload: any = { ...place };
+  if (updatePayload.google_data || updatePayload.is_buffet !== undefined) {
+    updatePayload.google_data = {
+      ...(updatePayload.google_data || {}),
+      is_buffet: Boolean(updatePayload.is_buffet),
+    };
+  }
+
+  let { data, error } = await supabase
     .from('places')
-    .update(place)
+    .update(updatePayload)
     .eq('id', id)
     .select()
     .single();
+
+  if (error && updatePayload.is_buffet !== undefined) {
+    const fallbackPayload = { ...updatePayload };
+    delete fallbackPayload.is_buffet;
+    const retry = await supabase
+      .from('places')
+      .update(fallbackPayload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) {
     console.error('Error updating place:', error);
