@@ -14,9 +14,8 @@ interface MapViewProps {
   isAdminLoggedIn?: boolean;
 }
 
-const TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const TILE_URL = 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
+const TILE_ATTRIBUTION = '&copy; Google Maps &copy; OpenStreetMap contributors';
 
 export default function MapView({ places, selectedCategory, selectedCategories, onPlaceClick, categories, isAdminLoggedIn }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -70,14 +69,14 @@ export default function MapView({ places, selectedCategory, selectedCategories, 
         tap: false,
       } as L.MapOptions & { tap?: boolean });
 
-      // Primary CARTO Tile Layer
+      // Google Maps Tile Layer
       const primaryTile = L.tileLayer(TILE_URL, {
-        maxZoom: 19,
-        subdomains: 'abcd',
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
         attribution: TILE_ATTRIBUTION,
       }).addTo(map);
 
-      // Backup OpenStreetMap Tile Layer in case primary tiles fail
+      // OpenStreetMap Tile Layer as fallback
       const backupTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         subdomains: ['a', 'b', 'c'],
