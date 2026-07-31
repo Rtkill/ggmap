@@ -1,6 +1,28 @@
 import type { Metadata, Viewport } from 'next';
+import { Prompt, Outfit, Noto_Sans_Thai } from 'next/font/google';
 import './globals.css';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+
+const promptFont = Prompt({
+  subsets: ['latin', 'thai'],
+  weight: ['300', '400', '500', '600', '700', '800'],
+  variable: '--font-prompt',
+  display: 'swap',
+});
+
+const outfitFont = Outfit({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700', '800'],
+  variable: '--font-outfit',
+  display: 'swap',
+});
+
+const notoSansThaiFont = Noto_Sans_Thai({
+  subsets: ['thai', 'latin'],
+  weight: ['300', '400', '500', '600', '700', '800'],
+  variable: '--font-noto-sans-thai',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Grub & Gulp Around the World',
@@ -38,19 +60,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="th">
+    <html
+      lang="th"
+      className={`${promptFont.variable} ${outfitFont.variable} ${notoSansThaiFont.variable}`}
+    >
       <head>
         <link rel="icon" href="/logo-optimized.png" type="image/png" sizes="any" />
         <link rel="apple-touch-icon" href="/logo-optimized.png" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       </head>
-      <body>
+      <body className={promptFont.className}>
         {children}
         <PWAInstallPrompt />
       </body>

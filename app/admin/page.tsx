@@ -1932,7 +1932,7 @@ export default function AdminPage() {
           width: 100%;
           background: linear-gradient(135deg, #0d0f1b 0%, #151829 100%);
           color: #e2e8f0;
-          font-family: 'Outfit', 'Noto Sans Thai', sans-serif;
+          font-family: var(--font-prompt), var(--font-noto-sans-thai), var(--font-outfit), 'Prompt', 'Noto Sans Thai', sans-serif;
           overflow: hidden;
         }
 

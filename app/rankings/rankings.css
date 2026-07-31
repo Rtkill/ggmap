@@ -12,7 +12,7 @@
   overflow-y: auto !important;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  font-family: 'Prompt', 'Outfit', 'Noto Sans Thai', sans-serif;
+  font-family: var(--font-prompt), var(--font-noto-sans-thai), var(--font-outfit), 'Prompt', 'Noto Sans Thai', sans-serif;
 }
 
 /* ─── Hero Section ────────────────────────────── */

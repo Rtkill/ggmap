@@ -51,7 +51,7 @@ body {
 }
 
 body {
-  font-family: 'Prompt', 'Outfit', 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-prompt), var(--font-noto-sans-thai), var(--font-outfit), 'Prompt', 'Noto Sans Thai', 'Outfit', system-ui, -apple-system, sans-serif;
   background: var(--bg-base);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
