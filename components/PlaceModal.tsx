@@ -35,7 +35,25 @@ export default function PlaceModal({ place, onClose, isAdminLoggedIn, onUpdatePl
   const [editRating, setEditRating] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+
+  const handleAutoTranslate = async () => {
+    if (!editNotes || editNotes.trim() === '') return;
+    setIsTranslating(true);
+    try {
+      const { translateThaiToEnglish } = await import('@/lib/translate');
+      const thaiPart = editNotes.split('\n\n')[0] || editNotes;
+      const translated = await translateThaiToEnglish(thaiPart);
+      if (translated) {
+        setEditNotes(`${thaiPart.trim()}\n\n${translated}`);
+      }
+    } catch (err) {
+      console.error('Auto-translate error:', err);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   // Sync admin auth status
   useEffect(() => {
@@ -368,9 +386,34 @@ export default function PlaceModal({ place, onClose, isAdminLoggedIn, onUpdatePl
                   </div>
 
                   <div style={{ marginBottom: 14 }}>
-                    <label style={{ fontSize: '12px', fontWeight: 750, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
-                      📖 บันทึกส่วนตัว (Personal Notes):
-                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <label style={{ fontSize: '12px', fontWeight: 750, color: 'var(--text-primary)', margin: 0 }}>
+                        📖 บันทึกส่วนตัว (Personal Notes):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAutoTranslate}
+                        disabled={isTranslating || !editNotes.trim()}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          background: 'rgba(59, 130, 246, 0.1)',
+                          border: '1px solid rgba(59, 130, 246, 0.25)',
+                          borderRadius: '8px',
+                          padding: '3px 10px',
+                          color: '#3b82f6',
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          cursor: isTranslating ? 'wait' : 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: '0 2px 6px rgba(59, 130, 246, 0.08)',
+                        }}
+                      >
+                        {isTranslating ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
+                        <span>{isTranslating ? 'กำลังแปล...' : '🌐 แปลเป็นภาษาอังกฤษ (Auto Translate)'}</span>
+                      </button>
+                    </div>
                     <textarea
                       rows={4}
                       value={editNotes}
