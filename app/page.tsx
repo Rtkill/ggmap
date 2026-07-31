@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { Settings, Globe, MapPin, Compass, UtensilsCrossed, Search, X, Trophy } from 'lucide-react';
+import { Settings, Globe, MapPin, Compass, UtensilsCrossed, Search, X, Trophy, ChevronDown } from 'lucide-react';
 import { Place, DbCategory } from '@/types/place';
 import CategoryFilter from '@/components/Map/CategoryFilter';
 import PlaceModal from '@/components/PlaceModal';
@@ -30,6 +30,10 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+
+  // Dropdown states for Location Selector
+  const [isCountryOpen, setIsCountryOpen] = useState(false);
+  const [isProvinceOpen, setIsProvinceOpen] = useState(false);
 
   // Check if admin is logged in
   useEffect(() => {
@@ -105,6 +109,16 @@ export default function HomePage() {
     return Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   }, [places]);
 
+  // Compute place counts per country
+  const countryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    places.forEach((p) => {
+      const c = getCountryForPlace(p.lat, p.lng, p.google_data);
+      counts[c] = (counts[c] ?? 0) + 1;
+    });
+    return counts;
+  }, [places]);
+
   // Handle location detection on mount
   useEffect(() => {
     if (uniqueCountries.length === 0 || isLocationLoaded) return;
@@ -150,6 +164,18 @@ export default function HomePage() {
       }
     });
     return Array.from(provSet).sort();
+  }, [places, selectedCountry]);
+
+  // Compute place counts per province in selected country
+  const provinceCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    places.forEach((p) => {
+      if (getCountryForPlace(p.lat, p.lng, p.google_data) === selectedCountry) {
+        const prov = getProvinceFromGoogleData(p.google_data) || 'อื่นๆ';
+        counts[prov] = (counts[prov] ?? 0) + 1;
+      }
+    });
+    return counts;
   }, [places, selectedCountry]);
 
   // Auto-select nearest province if user GPS is available and matches a province with pins
@@ -428,59 +454,217 @@ export default function HomePage() {
         </div>
       </nav>
 
-      {/* Ultra-Compact Combined Single-Row Location Filter Bar */}
+      {/* Glassmorphic Location Selector Dropdown Bar */}
       {uniqueCountries.length > 0 && (
-        <div className="location-compact-bar">
-          {/* Country Selector */}
-          <div className="compact-selector-group">
-            <span className="compact-label">🌍</span>
-            <div className="compact-pills-container">
-              {uniqueCountries.map((country) => (
-                <button
-                  key={country}
-                  onClick={() => {
-                    setSelectedCountry(country);
-                    setSelectedProvince('All');
-                    setSelectedCategories(['All']);
-                  }}
-                  className={`compact-pill-btn ${selectedCountry === country ? 'active' : ''}`}
-                >
-                  <span className="flag-icon">{getCountryFlag(country)}</span>
-                  <span>{country}</span>
-                </button>
-              ))}
-            </div>
+        <div
+          className="location-dropdown-bar"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '8px 16px',
+            background: 'rgba(255, 255, 255, 0.85)',
+            backdropFilter: 'blur(12px)',
+            borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+            position: 'relative',
+            zIndex: 450,
+          }}
+        >
+          {/* Backdrop overlay to close dropdowns when clicking outside */}
+          {(isCountryOpen || isProvinceOpen) && (
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 900 }}
+              onClick={() => {
+                setIsCountryOpen(false);
+                setIsProvinceOpen(false);
+              }}
+            />
+          )}
+
+          {/* Country Dropdown */}
+          <div style={{ position: 'relative', zIndex: 950 }}>
+            <button
+              onClick={() => {
+                setIsCountryOpen(!isCountryOpen);
+                setIsProvinceOpen(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                borderRadius: '20px',
+                background: 'var(--bg-surface, #ffffff)',
+                border: '1.5px solid rgba(0, 0, 0, 0.1)',
+                color: 'var(--text-primary, #0f172a)',
+                fontSize: '12.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span style={{ fontSize: '15px' }}>{getCountryFlag(selectedCountry)}</span>
+              <span>{selectedCountry || 'เลือกประเทศ'}</span>
+              <span style={{ fontSize: '11px', opacity: 0.7, background: 'rgba(0,0,0,0.06)', padding: '1px 6px', borderRadius: '10px' }}>
+                {countryCounts[selectedCountry] ?? 0}
+              </span>
+              <ChevronDown size={14} style={{ opacity: 0.7, transform: isCountryOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
+
+            {/* Country Dropdown Menu */}
+            {isCountryOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  minWidth: '210px',
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  boxShadow: '0 12px 32px rgba(0, 0, 0, 0.18)',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  zIndex: 1000,
+                  padding: '6px 0',
+                }}
+              >
+                {uniqueCountries.map((country) => (
+                  <div
+                    key={country}
+                    onClick={() => {
+                      setSelectedCountry(country);
+                      setSelectedProvince('All');
+                      setSelectedCategories(['All']);
+                      setIsCountryOpen(false);
+                    }}
+                    style={{
+                      padding: '9px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: selectedCountry === country ? 750 : 500,
+                      color: selectedCountry === country ? '#eab308' : '#1e293b',
+                      background: selectedCountry === country ? 'rgba(234, 179, 8, 0.08)' : 'transparent',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>{getCountryFlag(country)}</span>
+                      <span>{country}</span>
+                    </div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10 }}>
+                      {countryCounts[country] ?? 0} ร้าน
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="compact-divider" />
+          {/* Vertical Divider */}
+          <div style={{ width: 1, height: 18, background: 'rgba(0,0,0,0.12)', flexShrink: 0 }} />
 
-          {/* Province Selector (On Same Row) */}
-          <div className="compact-selector-group">
-            <span className="compact-label">📍</span>
-            <div className="compact-pills-container">
-              <button
-                onClick={() => {
-                  setSelectedProvince('All');
-                  setSelectedCategories(['All']);
+          {/* Province Dropdown */}
+          <div style={{ position: 'relative', zIndex: 950 }}>
+            <button
+              onClick={() => {
+                setIsProvinceOpen(!isProvinceOpen);
+                setIsCountryOpen(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                borderRadius: '20px',
+                background: selectedProvince !== 'All' ? 'var(--text-primary, #0f172a)' : 'var(--bg-surface, #ffffff)',
+                border: '1.5px solid rgba(0, 0, 0, 0.1)',
+                color: selectedProvince !== 'All' ? '#ffffff' : 'var(--text-primary, #0f172a)',
+                fontSize: '12.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>📍</span>
+              <span>{selectedProvince === 'All' ? `ทุกจังหวัด (${selectedCountry})` : selectedProvince}</span>
+              <ChevronDown size={14} style={{ opacity: 0.7, transform: isProvinceOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
+
+            {/* Province Dropdown Menu */}
+            {isProvinceOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  minWidth: '220px',
+                  maxHeight: '320px',
+                  overflowY: 'auto',
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  boxShadow: '0 12px 32px rgba(0, 0, 0, 0.18)',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  zIndex: 1000,
+                  padding: '6px 0',
                 }}
-                className={`compact-pill-btn prov ${selectedProvince === 'All' ? 'active' : ''}`}
               >
-                ทั้งหมด ({selectedCountry})
-              </button>
-
-              {availableProvinces.map((prov) => (
-                <button
-                  key={prov}
+                {/* Option All */}
+                <div
                   onClick={() => {
-                    setSelectedProvince(prov);
+                    setSelectedProvince('All');
                     setSelectedCategories(['All']);
+                    setIsProvinceOpen(false);
                   }}
-                  className={`compact-pill-btn prov ${selectedProvince === prov ? 'active' : ''}`}
+                  style={{
+                    padding: '9px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: selectedProvince === 'All' ? 750 : 500,
+                    color: selectedProvince === 'All' ? '#eab308' : '#1e293b',
+                    background: selectedProvince === 'All' ? 'rgba(234, 179, 8, 0.08)' : 'transparent',
+                    borderBottom: '1px solid rgba(0,0,0,0.05)',
+                  }}
                 >
-                  {prov}
-                </button>
-              ))}
-            </div>
+                  <span>📍 ทุกจังหวัด ({selectedCountry})</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10 }}>
+                    {countryCounts[selectedCountry] ?? 0} ร้าน
+                  </span>
+                </div>
+
+                {availableProvinces.map((prov) => (
+                  <div
+                    key={prov}
+                    onClick={() => {
+                      setSelectedProvince(prov);
+                      setSelectedCategories(['All']);
+                      setIsProvinceOpen(false);
+                    }}
+                    style={{
+                      padding: '9px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: selectedProvince === prov ? 750 : 500,
+                      color: selectedProvince === prov ? '#eab308' : '#1e293b',
+                      background: selectedProvince === prov ? 'rgba(234, 179, 8, 0.08)' : 'transparent',
+                    }}
+                  >
+                    <span>{prov}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10 }}>
+                      {provinceCounts[prov] ?? 0} ร้าน
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
