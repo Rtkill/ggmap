@@ -50,6 +50,7 @@ export interface Place {
   video_url?: string;
   created_at: string;
   google_data?: any;
+  is_buffet?: boolean;
 }
 
 export interface DbCategory {

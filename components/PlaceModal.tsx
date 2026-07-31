@@ -235,6 +235,11 @@ export default function PlaceModal({ place, onClose, isAdminLoggedIn, onUpdatePl
                 <span className="modal-category-badge" style={{ backgroundColor: color }}>
                   {activePlace.category}
                 </span>
+                {(activePlace.is_buffet || activePlace.category === 'Buffet') && (
+                  <span className="modal-category-badge" style={{ backgroundColor: '#E26D5C' }}>
+                    Buffet
+                  </span>
+                )}
                 <span className="modal-price" title={PRICE_LABELS[activePlace.price_range] ?? ''}>
                   {activePlace.price_range}
                 </span>

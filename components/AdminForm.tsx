@@ -22,6 +22,7 @@ interface FormData {
   lng: string;
   video_url: string;
   maps_link: string;
+  is_buffet: boolean;
 }
 
 const EMPTY_FORM: FormData = {
@@ -34,6 +35,7 @@ const EMPTY_FORM: FormData = {
   lng: '',
   video_url: '',
   maps_link: '',
+  is_buffet: false,
 };
 
 
@@ -133,6 +135,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
         lng: editPlace.lng.toString(),
         video_url: editPlace.video_url || '',
         maps_link: editPlace.google_maps_url || '',
+        is_buffet: editPlace.is_buffet || editPlace.category === 'Buffet' || false,
       });
       setGoogleData(editPlace.google_data || null);
       if (editPlace.google_data?.custom_about) {
@@ -533,6 +536,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
           google_maps_url: form.maps_link,
           video_url: form.video_url,
           google_data: finalGoogleData,
+          is_buffet: form.is_buffet || form.category === 'Buffet' || false,
         });
 
         if (result) {
@@ -555,6 +559,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
           google_maps_url: form.maps_link,
           video_url: form.video_url,
           google_data: finalGoogleData,
+          is_buffet: form.is_buffet || form.category === 'Buffet' || false,
         });
 
         if (result) {
@@ -862,6 +867,20 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Buffet Checkbox */}
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '13.5px', fontWeight: 700, color: 'var(--text-primary)', background: 'rgba(226, 109, 92, 0.08)', border: '1px solid rgba(226, 109, 92, 0.25)', padding: '8px 14px', borderRadius: '10px', transition: 'all 0.2s ease' }}>
+              <input
+                type="checkbox"
+                name="is_buffet"
+                checked={form.is_buffet || form.category === 'Buffet'}
+                onChange={(e) => setForm((prev) => ({ ...prev, is_buffet: e.target.checked }))}
+                style={{ width: 18, height: 18, accentColor: '#E26D5C', cursor: 'pointer' }}
+              />
+              <span>🍱 ร้านนี้เป็นร้านบุฟเฟต์ (Buffet)</span>
+            </label>
           </div>
 
           {/* Maps Link */}
