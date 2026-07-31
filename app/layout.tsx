@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next';
 import { Prompt, Outfit, Noto_Sans_Thai } from 'next/font/google';
 import 'leaflet/dist/leaflet.css';
 import './globals.css';
-import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
 const promptFont = Prompt({
   subsets: ['latin', 'thai'],
@@ -72,7 +71,6 @@ export default function RootLayout({
       </head>
       <body className={promptFont.className}>
         {children}
-        <PWAInstallPrompt />
       </body>
     </html>
   );
