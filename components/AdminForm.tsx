@@ -492,6 +492,31 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
+    // Fetch latest places and check for duplicate place before submitting
+    const { getPlaces, checkDuplicatePlace } = await import('@/lib/places');
+    const latestPlaces = await getPlaces();
+    const dupPlace = checkDuplicatePlace(
+      {
+        name: form.name,
+        google_maps_url: form.maps_link,
+        lat: parseFloat(form.lat) || undefined,
+        lng: parseFloat(form.lng) || undefined,
+        google_data: googleData,
+      },
+      latestPlaces,
+      editPlace?.id
+    );
+
+    if (dupPlace && !editPlace) {
+      setMessage({
+        type: 'error',
+        text: `❌ ไม่สามารถปักหมุดซ้ำได้! เนื่องจากร้าน "${dupPlace.name}" มีอยู่ในระบบแล้ว สามารถคลิกปุ่ม "แก้ไขหมุดนี้แทน" เพื่อแก้ไขข้อมูลเดิมได้เลยครับ`,
+      });
+      return;
+    }
+
     if (!form.name) {
       setMessage({ type: 'error', text: 'กรุณากรอกชื่อร้าน' });
       return;
@@ -514,11 +539,6 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
       } else {
         setMessage({ type: 'error', text: 'กรุณากรอกพิกัดโดยการค้นหาชื่อร้านในช่องค้นหาด้านบน หรือวางลิงก์ Google Maps' });
         return;
-    if (duplicatePlace) {
-      setMessage({
-        type: 'error',
-        text: `❌ ไม่สามารถปักหมุดซ้ำได้ เนื่องจากร้าน "${duplicatePlace.name}" มีอยู่ในระบบแล้ว สามารถคลิกปุ่ม "แก้ไขหมุดนี้แทน" เพื่อแก้ไขข้อมูลเดิมได้เลยครับ`,
-      });
       return;
     }
 
