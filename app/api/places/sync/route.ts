@@ -14,15 +14,69 @@ export async function POST(req: NextRequest) {
 
     let queryText = name || '';
 
-    // 1. Resolve short URL redirect and extract query text from Google Maps link
+    // 1. Resolve short URL redirect and extract query text / CID from Google Maps link
     if (mapsUrl) {
       let resolvedUrl = mapsUrl;
-      if (mapsUrl.includes('maps.app.goo.gl') || mapsUrl.includes('goo.gl/maps')) {
+      if (mapsUrl.includes('maps.app.goo.gl') || mapsUrl.includes('goo.gl/maps') || mapsUrl.includes('g.page')) {
         try {
-          const headRes = await fetch(mapsUrl, { method: 'HEAD', redirect: 'follow' });
+          const headRes = await fetch(mapsUrl, { method: 'GET', redirect: 'follow' });
           resolvedUrl = headRes.url;
         } catch (e) {
           console.error('Error resolving Google Maps redirect:', e);
+        }
+      }
+
+      // Check for Google CID parameter (e.g. ?cid=18104651792258836290)
+      let cidParam: string | null = null;
+      try {
+        const urlObj = new URL(resolvedUrl);
+        cidParam = urlObj.searchParams.get('cid') || urlObj.searchParams.get('ftid');
+      } catch (e) {
+        const cidMatch = resolvedUrl.match(/[\?&](?:cid|ftid)=([^&]+)/);
+        if (cidMatch) cidParam = cidMatch[1];
+      }
+
+      if (cidParam) {
+        // Direct CID fetch via Google Place Details API
+        const cidDetailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?cid=${cidParam}&fields=place_id,name,rating,user_ratings_total,formatted_phone_number,website,formatted_address,address_components,opening_hours,reviews,price_level,editorial_summary,types,geometry,dine_in,takeout,delivery,curbside_pickup,reservable,serves_beer,serves_wine,serves_breakfast,serves_brunch,serves_lunch,serves_dinner,serves_vegetarian_food,wheelchair_accessible_entrance&key=${apiKey}&language=en`;
+        try {
+          const cidRes = await fetch(cidDetailsUrl);
+          const cidData = await cidRes.json();
+          if (cidData.status === 'OK' && cidData.result) {
+            const result = cidData.result;
+            return NextResponse.json({
+              success: true,
+              place_id: result.place_id,
+              name: result.name,
+              rating: result.rating,
+              user_ratings_total: result.user_ratings_total,
+              formatted_phone_number: result.formatted_phone_number,
+              website: result.website,
+              formatted_address: result.formatted_address,
+              address_components: result.address_components,
+              opening_hours: result.opening_hours,
+              reviews: result.reviews,
+              price_level: result.price_level,
+              editorial_summary: result.editorial_summary,
+              types: result.types,
+              geometry: result.geometry,
+              dine_in: result.dine_in,
+              takeout: result.takeout,
+              delivery: result.delivery,
+              curbside_pickup: result.curbside_pickup,
+              reservable: result.reservable,
+              serves_beer: result.serves_beer,
+              serves_wine: result.serves_wine,
+              serves_breakfast: result.serves_breakfast,
+              serves_brunch: result.serves_brunch,
+              serves_lunch: result.serves_lunch,
+              serves_dinner: result.serves_dinner,
+              serves_vegetarian_food: result.serves_vegetarian_food,
+              wheelchair_accessible_entrance: result.wheelchair_accessible_entrance,
+            });
+          }
+        } catch (cidErr) {
+          console.error('Error fetching by CID:', cidErr);
         }
       }
 
@@ -69,7 +123,7 @@ export async function POST(req: NextRequest) {
 
     if (!queryText) {
       return NextResponse.json(
-        { success: false, error: 'Could not extract place name query. Please write the shop name in the form and try again.' },
+        { success: false, error: 'กรุณากรอกชื่อร้านในช่อง "ชื่อร้าน" ก่อนกดปุ่มดึงข้อมูล' },
         { status: 400 }
       );
     }
@@ -84,14 +138,14 @@ export async function POST(req: NextRequest) {
 
     if (searchData.status !== 'OK' || !searchData.results || searchData.results.length === 0) {
       return NextResponse.json(
-        { success: false, error: `Google Places search failed: ${searchData.status || 'No results'}` },
+        { success: false, error: `ไม่พบข้อมูลร้านบน Google Places (Status: ${searchData.status || 'No results'})` },
         { status: 404 }
       );
     }
 
     const placeId = searchData.results[0].place_id;
 
-    // 3. Fetch full Place Details (Rating, Phone, Website, Reviews, Open Hours, Geometry) in English
+    // 3. Fetch full Place Details in English
     const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total,formatted_phone_number,website,formatted_address,address_components,opening_hours,reviews,price_level,editorial_summary,types,geometry,dine_in,takeout,delivery,curbside_pickup,reservable,serves_beer,serves_wine,serves_breakfast,serves_brunch,serves_lunch,serves_dinner,serves_vegetarian_food,wheelchair_accessible_entrance&key=${apiKey}&language=en`;
 
     const detailsRes = await fetch(detailsUrl);
@@ -99,7 +153,7 @@ export async function POST(req: NextRequest) {
 
     if (detailsData.status !== 'OK' || !detailsData.result) {
       return NextResponse.json(
-        { success: false, error: `Google Place Details failed: ${detailsData.status}` },
+        { success: false, error: `ไม่สามารถดึงรายละเอียดร้านได้ (Status: ${detailsData.status})` },
         { status: 404 }
       );
     }
