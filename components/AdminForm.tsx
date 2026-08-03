@@ -85,44 +85,19 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
 
   // Real-time Duplicate Place Detection
   const duplicatePlace = useMemo(() => {
-    if (editPlace) return null; // Don't flag duplicate if editing that place
     if (existingPlaces.length === 0) return null;
-
-    const currentPlaceId = googleData?.place_id || googleData?.id;
-    const currentMapsUrl = form.maps_link ? form.maps_link.trim().toLowerCase() : '';
-    const currentName = form.name ? form.name.trim().toLowerCase() : '';
-
-    if (!currentPlaceId && !currentMapsUrl && !currentName) return null;
-
-    for (const p of existingPlaces) {
-      // 1. Match Google Place ID
-      const pPlaceId = p.google_data?.place_id || p.google_data?.id;
-      if (currentPlaceId && pPlaceId && currentPlaceId === pPlaceId) {
-        return p;
-      }
-
-      // 2. Match Google Maps URL
-      if (currentMapsUrl && p.google_maps_url) {
-        const pUrl = p.google_maps_url.trim().toLowerCase();
-        if (pUrl === currentMapsUrl) {
-          return p;
-        }
-      }
-
-      // 3. Match Name + Lat/Lng Proximity (within ~300m)
-      if (currentName && p.name && p.name.trim().toLowerCase() === currentName) {
-        const latVal = parseFloat(form.lat);
-        const lngVal = parseFloat(form.lng);
-        if (!isNaN(latVal) && !isNaN(lngVal) && p.lat && p.lng) {
-          const distKm = Math.hypot(p.lat - latVal, p.lng - lngVal) * 111;
-          if (distKm < 0.3) {
-            return p;
-          }
-        }
-      }
-    }
-
-    return null;
+    const { checkDuplicatePlace } = require('@/lib/places');
+    return checkDuplicatePlace(
+      {
+        name: form.name,
+        google_maps_url: form.maps_link,
+        lat: parseFloat(form.lat) || undefined,
+        lng: parseFloat(form.lng) || undefined,
+        google_data: googleData,
+      },
+      existingPlaces,
+      editPlace?.id
+    );
   }, [editPlace, existingPlaces, googleData, form.maps_link, form.name, form.lat, form.lng]);
 
   // Autocomplete states (Nominatim Geocoding API - free, zero setup)

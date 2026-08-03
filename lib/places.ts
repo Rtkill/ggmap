@@ -46,6 +46,70 @@ export async function getPlaceById(id: string): Promise<Place | null> {
   return places.find((p) => String(p.id) === String(id)) || null;
 }
 
+export function normalizeName(name?: string): string {
+  if (!name) return '';
+  return name.toLowerCase().replace(/[^\w\u0E00-\u0E7F]/g, '').trim();
+}
+
+export function extractCidFromUrl(url?: string): string | null {
+  if (!url) return null;
+  const match = url.match(/[\?&](?:cid|ftid)=([^&]+)/);
+  return match ? match[1] : null;
+}
+
+export function checkDuplicatePlace(
+  newPlace: { name: string; google_maps_url?: string; lat?: number; lng?: number; google_data?: any },
+  existingPlaces: Place[],
+  currentEditId?: string
+): Place | null {
+  const normNewName = normalizeName(newPlace.name);
+  const newPlaceId = newPlace.google_data?.place_id || newPlace.google_data?.id;
+  const newCid = extractCidFromUrl(newPlace.google_maps_url);
+  const newUrl = newPlace.google_maps_url ? newPlace.google_maps_url.trim().toLowerCase() : '';
+
+  if (!normNewName && !newPlaceId && !newCid && !newUrl) return null;
+
+  for (const p of existingPlaces) {
+    if (currentEditId && String(p.id) === String(currentEditId)) continue;
+
+    const normPName = normalizeName(p.name);
+
+    // 1. Strict Name Match (Case-insensitive & punctuation-insensitive)
+    if (normNewName && normPName && normNewName === normPName) {
+      return p;
+    }
+
+    // 2. Google Place ID Match
+    const pId = p.google_data?.place_id || p.google_data?.id;
+    if (newPlaceId && pId && String(newPlaceId) === String(pId)) {
+      return p;
+    }
+
+    // 3. Google CID Match
+    const pCid = extractCidFromUrl(p.google_maps_url);
+    if (newCid && pCid && newCid === pCid) {
+      return p;
+    }
+
+    // 4. Exact Google Maps URL Match
+    if (newUrl && p.google_maps_url && p.google_maps_url.trim().toLowerCase() === newUrl) {
+      return p;
+    }
+
+    // 5. Name inclusion + Proximity (< 1km)
+    if (normNewName && normPName && (normNewName.includes(normPName) || normPName.includes(normNewName))) {
+      if (newPlace.lat && newPlace.lng && p.lat && p.lng) {
+        const distKm = Math.hypot(p.lat - newPlace.lat, p.lng - newPlace.lng) * 111;
+        if (distKm < 1.0) {
+          return p;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 export async function insertPlace(place: Omit<Place, 'id' | 'created_at'>): Promise<Place | null> {
   const supabase = await getSupabase();
   if (!supabase) {
@@ -59,20 +123,11 @@ export async function insertPlace(place: Omit<Place, 'id' | 'created_at'>): Prom
     return newPlace;
   }
 
-  // Check for duplicate place ID or Google Maps URL before inserting
+  // Strict check for duplicate place before inserting
   const existingPlaces = await getPlaces();
-  const newPlaceId = place.google_data?.place_id || place.google_data?.id;
-  const newUrl = place.google_maps_url ? place.google_maps_url.trim().toLowerCase() : '';
-
-  const isDuplicate = existingPlaces.some((p) => {
-    const pId = p.google_data?.place_id || p.google_data?.id;
-    if (newPlaceId && pId && newPlaceId === pId) return true;
-    if (newUrl && p.google_maps_url && p.google_maps_url.trim().toLowerCase() === newUrl) return true;
-    return false;
-  });
-
-  if (isDuplicate) {
-    console.warn('Duplicate place insertion blocked for place:', place.name);
+  const dup = checkDuplicatePlace(place, existingPlaces);
+  if (dup) {
+    console.warn('Duplicate place insertion blocked:', place.name, 'Matches existing:', dup.name);
     return null;
   }
 
