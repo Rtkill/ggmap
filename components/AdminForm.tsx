@@ -371,6 +371,9 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
     setAiStatus({ type: 'loading', text: '🔍 กำลังค้นหาร้านจาก Google Maps...' });
 
     try {
+      const { getPlaces } = await import('@/lib/places');
+      const existingPlaces = await getPlaces();
+
       const res = await fetch('/api/ai-extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -385,6 +388,28 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
         const lngStr = d.lng?.toString() || '';
         const latNum = parseFloat(latStr);
         const lngNum = parseFloat(lngStr);
+
+        // Check if fallback place exists
+        const { checkDuplicatePlace, updatePlace } = await import('@/lib/places');
+        const dup = checkDuplicatePlace(d, existingPlaces);
+        if (dup) {
+          const existingVdos = dup.video_url ? dup.video_url.split(',').map((u: string) => u.trim()).filter(Boolean) : [];
+          const newVdo = (d.video_url || aiUrl.trim()).trim();
+          let mergedVdos = [...existingVdos];
+          if (newVdo && !mergedVdos.includes(newVdo)) {
+            mergedVdos.push(newVdo);
+          }
+          const mergedStr = mergedVdos.join(', ');
+
+          await updatePlace(dup.id, { video_url: mergedStr });
+          setAiStatus({
+            type: 'success',
+            text: `🎬 ตรวจพบว่าร้าน "${dup.name}" มีอยู่ในระบบแล้ว! ระบบได้เพิ่มคลิปวิดีโอรีวิวเข้าไปเป็นวิดีโอที่ ${mergedVdos.length} เรียบร้อยแล้ว`,
+          });
+          setAiUrl('');
+          onPlaceAdded();
+          return;
+        }
 
         const googleCountry = getCountryFromGoogleData(d.google_data);
         const country = googleCountry || ((!isNaN(latNum) && !isNaN(lngNum)) ? getCountryFromLatLng(latNum, lngNum) : 'Thailand');
@@ -444,47 +469,45 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
         body: JSON.stringify({ mapsUrl: form.maps_link, name: form.name }),
       });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Failed to fetch details');
-      }
-
       const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Sync failed');
-      }
+      if (data.success) {
+        const latStr = data.geometry?.location?.lat?.toString() || form.lat;
+        const lngStr = data.geometry?.location?.lng?.toString() || form.lng;
+        const latNum = parseFloat(latStr);
+        const lngNum = parseFloat(lngStr);
 
-      // Auto-fill coordinates, name, rating (only if not set yet), and price range
-      setForm((prev) => {
-        const latVal = data.geometry?.location?.lat;
-        const lngVal = data.geometry?.location?.lng;
-        const finalLat = latVal ? parseFloat(latVal.toString()) : parseFloat(prev.lat);
-        const finalLng = lngVal ? parseFloat(lngVal.toString()) : parseFloat(prev.lng);
-
-        const country = (!isNaN(finalLat) && !isNaN(finalLng))
-          ? getCountryFromLatLng(finalLat, finalLng)
-          : 'Thailand';
-
+        const googleCountry = getCountryFromGoogleData(data);
+        const country = googleCountry || ((!isNaN(latNum) && !isNaN(lngNum)) ? getCountryFromLatLng(latNum, lngNum) : 'Thailand');
         const mappedPrice = mapPriceLevelToRange(data.price_level, country);
 
-        return {
+        let autoCategory = mapGoogleTypesToCategory(data.types, form.category);
+
+        const ratingVal = typeof data.rating === 'number' ? data.rating.toString() : form.rating;
+
+        setForm((prev) => ({
           ...prev,
           name: data.name || prev.name,
-          rating: prev.rating,
-          lat: latVal?.toString() || prev.lat,
-          lng: lngVal?.toString() || prev.lng,
+          category: autoCategory || prev.category,
           price_range: mappedPrice,
-        };
-      });
+          lat: latStr,
+          lng: lngStr,
+          rating: ratingVal,
+        }));
 
-      setGoogleData({
-        ...data,
-        google_rating: data.rating,
-      });
-      setMessage({ type: 'success', text: `✅ ดึงข้อมูลร้าน "${data.name}" และระดับราคาเรียบร้อยแล้ว!` });
+        setGoogleData({
+          ...data,
+          google_rating: data.rating,
+        });
+
+        setMessage({
+          type: 'success',
+          text: `✅ ดึงข้อมูลร้าน "${data.name}" จาก Google Maps สำเร็จ!`,
+        });
+      } else {
+        setMessage({ type: 'error', text: `❌ ดึงข้อมูลไม่สำเร็จ: ${data.error}` });
+      }
     } catch (err: any) {
-      console.error(err);
-      setMessage({ type: 'error', text: `❌ ดึงข้อมูลไม่สำเร็จ: ${err.message}` });
+      setMessage({ type: 'error', text: `❌ ไม่สามารถดึงข้อมูลได้: ${err.message}` });
     } finally {
       setFetchingGoogle(false);
     }
@@ -510,10 +533,36 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
     );
 
     if (dupPlace && !editPlace) {
-      setMessage({
-        type: 'error',
-        text: `❌ ไม่สามารถปักหมุดซ้ำได้! เนื่องจากร้าน "${dupPlace.name}" มีอยู่ในระบบแล้ว สามารถคลิกปุ่ม "แก้ไขหมุดนี้แทน" เพื่อแก้ไขข้อมูลเดิมได้เลยครับ`,
+      // Auto-merge video URLs into existing place
+      const existingVdos = dupPlace.video_url ? dupPlace.video_url.split(',').map((u: string) => u.trim()).filter(Boolean) : [];
+      const newVdos = form.video_url ? form.video_url.split(',').map((u: string) => u.trim()).filter(Boolean) : [];
+
+      let mergedVdos = [...existingVdos];
+      newVdos.forEach((v) => {
+        if (v && !mergedVdos.includes(v)) {
+          mergedVdos.push(v);
+        }
       });
+
+      const mergedStr = mergedVdos.join(', ');
+
+      const { updatePlace } = await import('@/lib/places');
+      const res = await updatePlace(dupPlace.id, { video_url: mergedStr });
+
+      if (res) {
+        setMessage({
+          type: 'success',
+          text: `🎬 ตรวจพบว่าร้าน "${dupPlace.name}" มีอยู่ในระบบแล้ว! ระบบได้รวมคลิปวิดีโอรีวิวเข้ากับหมุดเดิมเป็นวิดีโอที่ ${mergedVdos.length} เรียบร้อยแล้ว`,
+        });
+        setForm(EMPTY_FORM);
+        setGoogleData(null);
+        onPlaceAdded();
+      } else {
+        setMessage({
+          type: 'error',
+          text: `❌ ตรวจพบว่าร้าน "${dupPlace.name}" มีอยู่ในระบบแล้ว (เกิดข้อผิดพลาดในการรวมวิดีโอ)`,
+        });
+      }
       return;
     }
 
