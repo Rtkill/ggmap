@@ -1755,6 +1755,11 @@ export default function AdminPage() {
                       <AdminForm
                         editPlace={editingPlace}
                         onPlaceAdded={handlePlaceSaved}
+                        allPlaces={places}
+                        onSelectEditPlace={(p) => {
+                          setEditingPlace(p);
+                          setIsAddingNew(false);
+                        }}
                         onCancel={() => {
                           setEditingPlace(null);
                           setIsAddingNew(false);

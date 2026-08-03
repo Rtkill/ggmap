@@ -59,6 +59,23 @@ export async function insertPlace(place: Omit<Place, 'id' | 'created_at'>): Prom
     return newPlace;
   }
 
+  // Check for duplicate place ID or Google Maps URL before inserting
+  const existingPlaces = await getPlaces();
+  const newPlaceId = place.google_data?.place_id || place.google_data?.id;
+  const newUrl = place.google_maps_url ? place.google_maps_url.trim().toLowerCase() : '';
+
+  const isDuplicate = existingPlaces.some((p) => {
+    const pId = p.google_data?.place_id || p.google_data?.id;
+    if (newPlaceId && pId && newPlaceId === pId) return true;
+    if (newUrl && p.google_maps_url && p.google_maps_url.trim().toLowerCase() === newUrl) return true;
+    return false;
+  });
+
+  if (isDuplicate) {
+    console.warn('Duplicate place insertion blocked for place:', place.name);
+    return null;
+  }
+
   const insertPayload: any = {
     ...place,
     google_data: {

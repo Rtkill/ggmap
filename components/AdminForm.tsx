@@ -10,6 +10,8 @@ interface AdminFormProps {
   editPlace: Place | null;
   onPlaceAdded: () => void;
   onCancel?: () => void;
+  onSelectEditPlace?: (place: Place) => void;
+  allPlaces?: Place[];
 }
 
 interface FormData {
@@ -61,12 +63,67 @@ function mapGoogleTypesToCategory(types: string[] = [], defaultCat = 'Restaurant
   return defaultCat;
 }
 
-export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFormProps) {
+export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectEditPlace, allPlaces }: AdminFormProps) {
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [kmlStatus, setKmlStatus] = useState<{ type: 'success' | 'error' | 'loading'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Existing places for duplicate check
+  const [existingPlaces, setExistingPlaces] = useState<Place[]>(allPlaces || []);
+
+  useEffect(() => {
+    if (allPlaces && allPlaces.length > 0) {
+      setExistingPlaces(allPlaces);
+    } else {
+      import('@/lib/places').then(({ getPlaces }) => {
+        getPlaces().then((data) => setExistingPlaces(data || []));
+      });
+    }
+  }, [allPlaces]);
+
+  // Real-time Duplicate Place Detection
+  const duplicatePlace = useMemo(() => {
+    if (editPlace) return null; // Don't flag duplicate if editing that place
+    if (existingPlaces.length === 0) return null;
+
+    const currentPlaceId = googleData?.place_id || googleData?.id;
+    const currentMapsUrl = form.maps_link ? form.maps_link.trim().toLowerCase() : '';
+    const currentName = form.name ? form.name.trim().toLowerCase() : '';
+
+    if (!currentPlaceId && !currentMapsUrl && !currentName) return null;
+
+    for (const p of existingPlaces) {
+      // 1. Match Google Place ID
+      const pPlaceId = p.google_data?.place_id || p.google_data?.id;
+      if (currentPlaceId && pPlaceId && currentPlaceId === pPlaceId) {
+        return p;
+      }
+
+      // 2. Match Google Maps URL
+      if (currentMapsUrl && p.google_maps_url) {
+        const pUrl = p.google_maps_url.trim().toLowerCase();
+        if (pUrl === currentMapsUrl) {
+          return p;
+        }
+      }
+
+      // 3. Match Name + Lat/Lng Proximity (within ~300m)
+      if (currentName && p.name && p.name.trim().toLowerCase() === currentName) {
+        const latVal = parseFloat(form.lat);
+        const lngVal = parseFloat(form.lng);
+        if (!isNaN(latVal) && !isNaN(lngVal) && p.lat && p.lng) {
+          const distKm = Math.hypot(p.lat - latVal, p.lng - lngVal) * 111;
+          if (distKm < 0.3) {
+            return p;
+          }
+        }
+      }
+    }
+
+    return null;
+  }, [editPlace, existingPlaces, googleData, form.maps_link, form.name, form.lat, form.lng]);
 
   // Autocomplete states (Nominatim Geocoding API - free, zero setup)
   const [mapSearchQuery, setMapSearchQuery] = useState('');
@@ -482,7 +539,12 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
       } else {
         setMessage({ type: 'error', text: 'กรุณากรอกพิกัดโดยการค้นหาชื่อร้านในช่องค้นหาด้านบน หรือวางลิงก์ Google Maps' });
         return;
-      }
+    if (duplicatePlace) {
+      setMessage({
+        type: 'error',
+        text: `❌ ไม่สามารถปักหมุดซ้ำได้ เนื่องจากร้าน "${duplicatePlace.name}" มีอยู่ในระบบแล้ว สามารถคลิกปุ่ม "แก้ไขหมุดนี้แทน" เพื่อแก้ไขข้อมูลเดิมได้เลยครับ`,
+      });
+      return;
     }
 
     const submitCountry = getCountryFromLatLng(latVal, lngVal);
@@ -654,6 +716,73 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
         </div>
 
         <form onSubmit={handleSubmit} className="admin-form">
+          {/* Duplicate Place Warning Banner */}
+          {duplicatePlace && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1.5px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: '12px',
+              padding: '14px 16px',
+              marginBottom: '20px',
+              animation: 'fade-in 0.3s ease',
+              boxShadow: '0 4px 16px rgba(239, 68, 68, 0.15)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ef4444', fontWeight: 800, fontSize: '14px', marginBottom: 6 }}>
+                <AlertCircle size={18} />
+                <span>⚠️ ตรวจพบหมุดซ้ำในระบบ! (Duplicate Place Detected)</span>
+              </div>
+              <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: '0 0 12px 0', lineHeight: 1.5 }}>
+                ร้าน <strong>"{duplicatePlace.name}"</strong> (หมวดหมู่: {duplicatePlace.category} | คะแนน: {duplicatePlace.rating}⭐) ถูกปักหมุดไว้แล้วในระบบ
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {onSelectEditPlace && (
+                  <button
+                    type="button"
+                    onClick={() => onSelectEditPlace(duplicatePlace)}
+                    style={{
+                      background: '#ef4444',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '7px 14px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      boxShadow: '0 2px 8px rgba(239, 68, 68, 0.25)',
+                    }}
+                  >
+                    <Edit3 size={13} />
+                    <span>แก้ไขหมุดนี้แทน</span>
+                  </button>
+                )}
+                {duplicatePlace.google_maps_url && (
+                  <a
+                    href={duplicatePlace.google_maps_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      color: 'var(--text-primary)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: '8px',
+                      padding: '7px 14px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <span>🌐 เปิดดูตำแหน่งใน Google Maps</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
           {/* ─── AI Extract Section ─────────────────────────────────── */}
           {!editPlace && (
             <div className="ai-extract-section" style={{
