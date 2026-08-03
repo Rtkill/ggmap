@@ -1,13 +1,19 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Play, Loader2 } from 'lucide-react';
 
 interface VideoPlayerProps {
   url: string; // Comma-separated list of video URLs
 }
 
-function getVideoEmbed(url: string): { type: 'youtube' | 'tiktok' | 'instagram' | 'unknown'; embedSrc: string } {
+interface EmbedInfo {
+  type: 'youtube' | 'tiktok' | 'instagram' | 'unknown';
+  embedSrc: string;
+  isShortLink?: boolean;
+}
+
+function getVideoEmbed(url: string, resolvedMap: Record<string, string>): EmbedInfo {
   if (!url) return { type: 'unknown', embedSrc: '' };
 
   // YouTube: youtube.com/watch?v=, youtu.be/, youtube.com/shorts/
@@ -21,12 +27,29 @@ function getVideoEmbed(url: string): { type: 'youtube' | 'tiktok' | 'instagram' 
     };
   }
 
-  // TikTok: tiktok.com/@user/video/ID
-  const ttMatch = url.match(/tiktok\.com\/@[^/]+\/video\/(\d+)/);
+  // If already resolved in state map
+  if (resolvedMap[url]) {
+    return {
+      type: 'tiktok',
+      embedSrc: `https://www.tiktok.com/embed/v2/${resolvedMap[url]}`,
+    };
+  }
+
+  // TikTok full video link: tiktok.com/@user/video/ID or video/ID
+  const ttMatch = url.match(/video\/(\d+)/);
   if (ttMatch) {
     return {
       type: 'tiktok',
       embedSrc: `https://www.tiktok.com/embed/v2/${ttMatch[1]}`,
+    };
+  }
+
+  // TikTok short links (vt.tiktok.com, vm.tiktok.com, v.tiktok.com, tiktok.com/t/)
+  if (/(?:vt|vm|v)\.tiktok\.com|tiktok\.com\/t\//i.test(url)) {
+    return {
+      type: 'tiktok',
+      embedSrc: '',
+      isShortLink: true,
     };
   }
 
@@ -44,6 +67,8 @@ function getVideoEmbed(url: string): { type: 'youtube' | 'tiktok' | 'instagram' 
 
 export default function VideoPlayer({ url }: VideoPlayerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [resolvedMap, setResolvedMap] = useState<Record<string, string>>({});
+  const [resolvingUrls, setResolvingUrls] = useState<Record<string, boolean>>({});
 
   // Split multiple URLs by comma
   const videoUrls = useMemo(() => {
@@ -55,7 +80,30 @@ export default function VideoPlayer({ url }: VideoPlayerProps) {
   }, [url]);
 
   const activeUrl = videoUrls[currentIndex] || '';
-  const { type, embedSrc } = useMemo(() => getVideoEmbed(activeUrl), [activeUrl]);
+  const embedInfo = useMemo(() => getVideoEmbed(activeUrl, resolvedMap), [activeUrl, resolvedMap]);
+  const { type, embedSrc, isShortLink } = embedInfo;
+
+  // Auto-resolve short links (vt.tiktok.com, vm.tiktok.com, etc.)
+  useEffect(() => {
+    if (isShortLink && activeUrl && !resolvedMap[activeUrl] && !resolvingUrls[activeUrl]) {
+      setResolvingUrls((prev) => ({ ...prev, [activeUrl]: true }));
+      fetch('/api/resolve-tiktok', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: activeUrl }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.videoId) {
+            setResolvedMap((prev) => ({ ...prev, [activeUrl]: data.videoId }));
+          }
+        })
+        .catch((err) => console.error('Failed to resolve TikTok short link:', err))
+        .finally(() => {
+          setResolvingUrls((prev) => ({ ...prev, [activeUrl]: false }));
+        });
+    }
+  }, [isShortLink, activeUrl, resolvedMap, resolvingUrls]);
 
   if (videoUrls.length === 0) return null;
 
@@ -68,6 +116,17 @@ export default function VideoPlayer({ url }: VideoPlayerProps) {
   };
 
   const renderVideoContent = () => {
+    if (isShortLink && !embedSrc) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', gap: 12, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', minHeight: 220 }}>
+          <Loader2 size={32} className="animate-spin" style={{ color: '#ff0050' }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
+            ♪ กำลังโหลดวิดีโอ TikTok...
+          </span>
+        </div>
+      );
+    }
+
     if (type === 'unknown') {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', gap: 12, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>

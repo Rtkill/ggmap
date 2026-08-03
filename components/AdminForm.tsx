@@ -496,6 +496,31 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
     setMessage(null);
 
     try {
+      // Auto-resolve TikTok short links in form.video_url if present
+      let finalVideoUrl = form.video_url;
+      if (finalVideoUrl && /(?:vt|vm|v)\.tiktok\.com|tiktok\.com\/t\//i.test(finalVideoUrl)) {
+        const urls = finalVideoUrl.split(',').map((u) => u.trim());
+        const resolvedList = await Promise.all(
+          urls.map(async (u) => {
+            if (/(?:vt|vm|v)\.tiktok\.com|tiktok\.com\/t\//i.test(u)) {
+              try {
+                const res = await fetch('/api/resolve-tiktok', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ url: u }),
+                });
+                const data = await res.json();
+                if (data.resolvedUrl) return data.resolvedUrl;
+              } catch (e) {
+                console.error(e);
+              }
+            }
+            return u;
+          })
+        );
+        finalVideoUrl = resolvedList.join(', ');
+      }
+
       // Auto-translate personal notes (Thai -> English) if Thai text is present and not already translated
       let finalPersonalNotes = form.personal_notes ? form.personal_notes.trim() : '';
       if (finalPersonalNotes && /[ก-๙]/.test(finalPersonalNotes)) {
@@ -534,7 +559,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
           lat: latVal,
           lng: lngVal,
           google_maps_url: form.maps_link,
-          video_url: form.video_url,
+          video_url: finalVideoUrl,
           google_data: finalGoogleData,
           is_buffet: form.is_buffet || form.category === 'Buffet' || false,
         });
@@ -557,7 +582,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel }: AdminFo
           lat: latVal,
           lng: lngVal,
           google_maps_url: form.maps_link,
-          video_url: form.video_url,
+          video_url: finalVideoUrl,
           google_data: finalGoogleData,
           is_buffet: form.is_buffet || form.category === 'Buffet' || false,
         });
