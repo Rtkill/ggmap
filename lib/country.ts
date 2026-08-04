@@ -279,6 +279,14 @@ const OVERSEAS_CITY_MAP: Record<string, string> = {
   'Firenze': 'Florence',
   'Napoli': 'Naples',
   'Torino': 'Turin',
+  'Trentino-Alto Adige': 'Bolzano (Dolomites)',
+  'Trentino-South Tyrol': 'Bolzano (Dolomites)',
+  'Trentino-Alto Adige/Südtirol': 'Bolzano (Dolomites)',
+  'South Tyrol': 'Bolzano (Dolomites)',
+  'Südtirol': 'Bolzano (Dolomites)',
+  'Bolzano': 'Bolzano (Dolomites)',
+  'Autonome Provinz Bozen – Südtirol': 'Bolzano (Dolomites)',
+  'Provincia autonoma di Bolzano – Alto Adige': 'Bolzano (Dolomites)',
 
   // Japan (Group all Tokyo wards/cities into 'Tokyo')
   'Tokyo-to': 'Tokyo',
