@@ -26,10 +26,19 @@ import {
   LogOut,
   Calendar,
   Tags,
+  Inbox,
+  Video,
+  ExternalLink,
+  CheckCircle2,
+  XCircle,
+  Sparkles,
+  Play,
 } from 'lucide-react';
 import AdminForm from '@/components/AdminForm';
-import { Place, DbCategory, DbPriceRange, CATEGORY_EMOJIS, CATEGORY_COLORS } from '@/types/place';
+import VideoPlayer from '@/components/VideoPlayer';
+import { Place, DbCategory, DbPriceRange, CATEGORY_EMOJIS, CATEGORY_COLORS, Submission, SubmissionStatus } from '@/types/place';
 import { getCountryFromLatLng, getCountryForPlace, getCountryFlag, getProvinceFromGoogleData } from '@/lib/country';
+import { getSubmissions, updateSubmissionStatus, deleteSubmission, parseLatLngFromGoogleMapsUrl, getVideoEmbedUrl } from '@/lib/submissions';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -50,6 +59,12 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [currentDate, setCurrentDate] = useState('');
   const [hoveredCategory, setHoveredCategory] = useState<any>(null);
+
+  // Submission states
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [submissionFilterStatus, setSubmissionFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  const [previewingVideoUrl, setPreviewingVideoUrl] = useState<string | null>(null);
+  const [approvingSubmissionId, setApprovingSubmissionId] = useState<string | null>(null);
 
   // Check login session status on mount
   useEffect(() => {
@@ -193,10 +208,63 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadSubmissions = useCallback(async () => {
+    try {
+      const data = await getSubmissions();
+      setSubmissions(data);
+    } catch (err) {
+      console.error('Failed to load submissions:', err);
+    }
+  }, []);
+
   useEffect(() => {
     loadPlaces();
     loadCategoriesAndPrices();
-  }, [loadPlaces, loadCategoriesAndPrices]);
+    loadSubmissions();
+  }, [loadPlaces, loadCategoriesAndPrices, loadSubmissions]);
+
+  const pendingSubmissionsCount = useMemo(() => {
+    return submissions.filter((s) => s.status === 'pending').length;
+  }, [submissions]);
+
+  const filteredSubmissions = useMemo(() => {
+    if (submissionFilterStatus === 'all') return submissions;
+    return submissions.filter((s) => s.status === submissionFilterStatus);
+  }, [submissions, submissionFilterStatus]);
+
+  const handleApproveSubmission = (sub: Submission) => {
+    const parsedCoords = parseLatLngFromGoogleMapsUrl(sub.google_maps_url);
+    const draftPlace: Place = {
+      id: '',
+      name: sub.place_name?.trim() || '',
+      video_url: sub.video_url || '',
+      google_maps_url: sub.google_maps_url || '',
+      category: 'Restaurant',
+      price_range: '฿1–200',
+      rating: 5,
+      personal_notes: '',
+      lat: parsedCoords ? parsedCoords.lat : 0,
+      lng: parsedCoords ? parsedCoords.lng : 0,
+      created_at: new Date().toISOString(),
+    };
+    setApprovingSubmissionId(sub.id);
+    setEditingPlace(draftPlace);
+    setIsAddingNew(true);
+  };
+
+  const handleRejectSubmission = async (subId: string) => {
+    if (confirm('คุณต้องการปฏิเสธคำขอนี้ใช่หรือไม่?')) {
+      await updateSubmissionStatus(subId, 'rejected');
+      loadSubmissions();
+    }
+  };
+
+  const handleDeleteSubmission = async (subId: string) => {
+    if (confirm('คุณต้องการลบคำขอนี้ออกจากประวัติใช่หรือไม่?')) {
+      await deleteSubmission(subId);
+      loadSubmissions();
+    }
+  };
 
   // Dynamic Category colors map
   const categoryColors = useMemo(() => {
@@ -555,8 +623,13 @@ export default function AdminPage() {
     }
   };
 
-  const handlePlaceSaved = () => {
+  const handlePlaceSaved = async () => {
     loadPlaces();
+    if (approvingSubmissionId) {
+      await updateSubmissionStatus(approvingSubmissionId, 'approved');
+      setApprovingSubmissionId(null);
+      loadSubmissions();
+    }
     setEditingPlace(null);
     setIsAddingNew(false);
   };
@@ -806,6 +879,34 @@ export default function AdminPage() {
           >
             <Tags size={16} />
             <span>Categories</span>
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('submissions');
+              setIsAddingNew(false);
+              setEditingPlace(null);
+            }}
+            className={`menu-item ${activeTab === 'submissions' ? 'active' : ''}`}
+            style={{ position: 'relative' }}
+          >
+            <Inbox size={16} />
+            <span>Submissions / คำขอ</span>
+            {pendingSubmissionsCount > 0 && (
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '2px 7px',
+                  borderRadius: '10px',
+                  lineHeight: 1,
+                }}
+              >
+                {pendingSubmissionsCount}
+              </span>
+            )}
           </button>
         </nav>
 
@@ -1741,34 +1842,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 📑 ADD / EDIT POPUP MODAL (Clean centered glass card) */}
-              {(editingPlace || isAddingNew) && (
-                <div className="glazzed-modal-backdrop" onClick={() => { setEditingPlace(null); setIsAddingNew(false); }}>
-                  <div className="glazzed-modal-content" onClick={(e) => e.stopPropagation()}>
-                    <div className="drawer-header-strip">
-                      <h4>{isAddingNew ? 'Create New Place' : 'Modify Place details'}</h4>
-                      <button onClick={() => { setEditingPlace(null); setIsAddingNew(false); }} className="drawer-close-btn">
-                        <X size={15} /> Close
-                      </button>
-                    </div>
-                    <div className="drawer-body-wrap">
-                      <AdminForm
-                        editPlace={editingPlace}
-                        onPlaceAdded={handlePlaceSaved}
-                        allPlaces={places}
-                        onSelectEditPlace={(p) => {
-                          setEditingPlace(p);
-                          setIsAddingNew(false);
-                        }}
-                        onCancel={() => {
-                          setEditingPlace(null);
-                          setIsAddingNew(false);
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -1923,6 +1996,281 @@ export default function AdminPage() {
                 </div>
               )}
 
+            </div>
+          )}
+
+          {/* TAB 4: USER SUBMISSIONS VIEW */}
+          {activeTab === 'submissions' && (
+            <div className="crud-view-content" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 24, alignItems: 'start' }}>
+              <div className="glazzed-card">
+                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                  <div>
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Inbox size={20} style={{ color: '#ffa800' }} />
+                      <span>User Submissions (คำขอส่งสถานที่ / VDO)</span>
+                    </h3>
+                    <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+                      รายการที่ผู้ใช้งานส่งเข้ามา ให้ Admin ตรวจสอบ กดพรีวิว VDO และปักหมุดขึ้นระบบ
+                    </p>
+                  </div>
+
+                  {/* Filter pills */}
+                  <div style={{ display: 'flex', gap: 6, background: 'rgba(255, 255, 255, 0.05)', padding: 4, borderRadius: 12 }}>
+                    {(['pending', 'all', 'approved', 'rejected'] as const).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setSubmissionFilterStatus(st)}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: submissionFilterStatus === st ? 'rgba(255, 168, 0, 0.2)' : 'transparent',
+                          color: submissionFilterStatus === st ? '#ffa800' : '#94a3b8',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {st === 'pending' && `รอตรวจสอบ (${pendingSubmissionsCount})`}
+                        {st === 'all' && `ทั้งหมด (${submissions.length})`}
+                        {st === 'approved' && `อนุมัติแล้ว (${submissions.filter((s) => s.status === 'approved').length})`}
+                        {st === 'rejected' && `ปฏิเสธ (${submissions.filter((s) => s.status === 'rejected').length})`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="table-wrapper" style={{ marginTop: 16 }}>
+                  {filteredSubmissions.length === 0 ? (
+                    <div className="table-empty" style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8' }}>
+                      ไม่พบบันทึกคำขอในหมวดหมู่นี้
+                    </div>
+                  ) : (
+                    <table className="glazzed-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '130px', whiteSpace: 'nowrap' }}>วันที่ส่ง</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>ชื่อสถานที่</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>วิดีโอ (Link / Preview)</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Google Maps Link & พิกัด</th>
+                          <th style={{ width: '130px', whiteSpace: 'nowrap' }}>สถานะ</th>
+                          <th style={{ width: '190px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredSubmissions.map((sub) => {
+                          const parsedCoords = parseLatLngFromGoogleMapsUrl(sub.google_maps_url);
+                          return (
+                            <tr key={sub.id}>
+                              <td style={{ fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                                {new Date(sub.created_at).toLocaleDateString('th-TH', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </td>
+
+                              {/* Place Name */}
+                              <td style={{ fontWeight: 700, color: '#f8fafc' }}>
+                                {sub.place_name ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <MapPin size={14} style={{ color: '#ffa800', flexShrink: 0 }} />
+                                    <span>{sub.place_name}</span>
+                                  </div>
+                                ) : (
+                                  <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: 12 }}>ไม่ได้ระบุ</span>
+                                )}
+                              </td>
+
+                              {/* Video URL & Preview */}
+                              <td style={{ whiteSpace: 'nowrap' }}>
+                                {sub.video_url ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <button
+                                      onClick={() => setPreviewingVideoUrl(sub.video_url || null)}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 4,
+                                        padding: '4px 10px',
+                                        borderRadius: 8,
+                                        background: 'rgba(239, 68, 68, 0.15)',
+                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                        color: '#f87171',
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      <Play size={12} />
+                                      <span>ดู VDO พรีวิว</span>
+                                    </button>
+                                    <a
+                                      href={sub.video_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ color: '#64748b', fontSize: 11, textDecoration: 'underline', whiteSpace: 'nowrap' }}
+                                    >
+                                      เปิดลิงก์แยก
+                                    </a>
+                                  </div>
+                                ) : (
+                                  <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: 12 }}>ไม่ได้ระบุ</span>
+                                )}
+                              </td>
+
+                              {/* Google Maps Link & Auto Extracted Coordinates */}
+                              <td>
+                                {sub.google_maps_url ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <a
+                                      href={sub.google_maps_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ color: '#38bdf8', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                                    >
+                                      <span>เปิด Google Maps</span>
+                                      <ExternalLink size={12} />
+                                    </a>
+                                    {parsedCoords && (
+                                      <div style={{ fontSize: 11, color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: 4, width: 'fit-content', whiteSpace: 'nowrap' }}>
+                                        📍 พิกัด Auto: {parsedCoords.lat.toFixed(4)}, {parsedCoords.lng.toFixed(4)}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: 12 }}>ไม่ได้ระบุ</span>
+                                )}
+                              </td>
+
+                              {/* Status Badge */}
+                              <td style={{ whiteSpace: 'nowrap' }}>
+                                {sub.status === 'pending' && (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 12, background: 'rgba(234, 179, 8, 0.15)', color: '#eab308', border: '1px solid rgba(234, 179, 8, 0.3)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                    ⏳ รอตรวจสอบ
+                                  </span>
+                                )}
+                                {sub.status === 'approved' && (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 12, background: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', border: '1px solid rgba(34, 197, 94, 0.3)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                    ✅ อนุมัติแล้ว
+                                  </span>
+                                )}
+                                {sub.status === 'rejected' && (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 12, background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                    ❌ ปฏิเสธ
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Actions */}
+                              <td style={{ whiteSpace: 'nowrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, whiteSpace: 'nowrap' }}>
+                                  {sub.status === 'pending' && (
+                                    <>
+                                      <button
+                                        onClick={() => handleApproveSubmission(sub)}
+                                        style={{
+                                          padding: '5px 10px',
+                                          borderRadius: 8,
+                                          background: '#10b981',
+                                          color: '#000',
+                                          fontWeight: 750,
+                                          fontSize: 11,
+                                          border: 'none',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                          whiteSpace: 'nowrap',
+                                        }}
+                                      >
+                                        <Sparkles size={13} />
+                                        <span>อนุมัติ & ปักหมุด</span>
+                                      </button>
+                                      <button
+                                        onClick={() => handleRejectSubmission(sub.id)}
+                                        style={{
+                                          padding: '5px 8px',
+                                          borderRadius: 8,
+                                          background: 'rgba(239, 68, 68, 0.2)',
+                                          color: '#ef4444',
+                                          fontSize: 11,
+                                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                                          cursor: 'pointer',
+                                          whiteSpace: 'nowrap',
+                                        }}
+                                      >
+                                        ปฏิเสธ
+                                      </button>
+                                    </>
+                                  )}
+                                  <button
+                                    onClick={() => handleDeleteSubmission(sub.id)}
+                                    className="action-btn delete-btn"
+                                    title="ลบรายการ"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              {/* Video Preview Modal */}
+              {previewingVideoUrl && (
+                <div className="glazzed-modal-backdrop" onClick={() => setPreviewingVideoUrl(null)}>
+                  <div className="glazzed-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+                    <div className="drawer-header-strip">
+                      <h4>📹 Video Preview</h4>
+                      <button onClick={() => setPreviewingVideoUrl(null)} className="drawer-close-btn">
+                        <X size={15} /> ปิด
+                      </button>
+                    </div>
+                    <div className="drawer-body-wrap" style={{ padding: 16 }}>
+                      <VideoPlayer url={previewingVideoUrl} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 📑 GLOBAL ADD / EDIT POPUP MODAL (Accessible from any tab including Submissions) */}
+          {(editingPlace || isAddingNew) && (
+            <div className="glazzed-modal-backdrop" onClick={() => { setEditingPlace(null); setIsAddingNew(false); }}>
+              <div className="glazzed-modal-content" onClick={(e) => e.stopPropagation()}>
+                <div className="drawer-header-strip">
+                  <h4>{isAddingNew ? 'Create New Place' : 'Modify Place details'}</h4>
+                  <button onClick={() => { setEditingPlace(null); setIsAddingNew(false); }} className="drawer-close-btn">
+                    <X size={15} /> Close
+                  </button>
+                </div>
+                <div className="drawer-body-wrap">
+                  <AdminForm
+                    editPlace={editingPlace}
+                    onPlaceAdded={handlePlaceSaved}
+                    allPlaces={places}
+                    onSelectEditPlace={(p) => {
+                      setEditingPlace(p);
+                      setIsAddingNew(false);
+                    }}
+                    onCancel={() => {
+                      setEditingPlace(null);
+                      setIsAddingNew(false);
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -27,6 +27,29 @@ interface FormData {
   is_buffet: boolean;
 }
 
+const CUSTOM_ABOUT_SCHEMA = {
+  popular_for: {
+    title: 'Popular for (เป็นที่นิยมสำหรับ)',
+    options: ['Solo dining', 'Good for working on laptop', 'Dinner', 'Family dining', 'Romantic dining', 'Quick bite', 'Breakfast', 'Lunch']
+  },
+  amenities: {
+    title: 'Amenities (สิ่งอำนวยความสะดวก)',
+    options: ['Restroom', 'Wi-Fi', 'Power outlet', 'High chairs', 'Good for kids', 'Air conditioning', 'Restroom for disabled']
+  },
+  atmosphere: {
+    title: 'Atmosphere (บรรยากาศ)',
+    options: ['Cozy', 'Casual', 'Trendy', 'Romantic', 'Upscale', 'Historic/Rustic']
+  },
+  payments: {
+    title: 'Payments (การชำระเงิน)',
+    options: ['Credit cards', 'Debit cards', 'NFC mobile payments', 'Cash-only']
+  },
+  parking: {
+    title: 'Parking (ที่จอดรถ)',
+    options: ['Free parking lot', 'Paid parking lot', 'Free street parking', 'Paid street parking', 'Valet parking']
+  }
+};
+
 const EMPTY_FORM: FormData = {
   name: '',
   category: 'Restaurant',
@@ -83,6 +106,10 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
     }
   }, [allPlaces]);
 
+  // Dynamic categories
+  const [categories, setCategories] = useState<DbCategory[]>([]);
+  const [googleData, setGoogleData] = useState<any | null>(null);
+
   // Real-time Duplicate Place Detection
   const duplicatePlace = useMemo(() => {
     if (existingPlaces.length === 0) return null;
@@ -105,10 +132,6 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Dynamic categories
-  const [categories, setCategories] = useState<DbCategory[]>([]);
-  const [googleData, setGoogleData] = useState<any | null>(null);
   const [fetchingGoogle, setFetchingGoogle] = useState(false);
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
 
@@ -170,6 +193,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
         is_buffet: editPlace.is_buffet || editPlace.category === 'Buffet' || false,
       });
       setGoogleData(editPlace.google_data || null);
+      setAiUrl(editPlace.video_url || '');
       if (editPlace.google_data?.custom_about) {
         setCustomAbout(editPlace.google_data.custom_about);
       } else {
@@ -183,6 +207,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
       }
     } else {
       setForm(EMPTY_FORM);
+      setAiUrl('');
       setGoogleData(null);
       setCustomAbout({
         popular_for: [],
@@ -566,29 +591,24 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
       return;
     }
 
-    if (!form.name) {
-      setMessage({ type: 'error', text: 'กรุณากรอกชื่อร้าน' });
+    let finalPlaceName = form.name.trim();
+    if (!finalPlaceName) {
+      setMessage({ type: 'error', text: 'กรุณากรอกชื่อร้าน หรือกดปุ่ม "AI Extract" ด้านบนเพื่อสกัดข้อมูลจากคลิปวิดีโออัตโนมัติ' });
       return;
     }
 
     let latVal = parseFloat(form.lat);
     let lngVal = parseFloat(form.lng);
 
-    // If coordinates aren't filled yet, try extracting from the Google Maps Link
-    if (isNaN(latVal) || isNaN(lngVal)) {
+    // If coordinates aren't filled yet, try extracting from Google Maps Link
+    if (isNaN(latVal) || isNaN(lngVal) || (latVal === 0 && lngVal === 0)) {
       if (form.maps_link) {
         const coords = parseGoogleMapsUrl(form.maps_link);
         if (coords) {
           latVal = coords.lat;
           lngVal = coords.lng;
-        } else {
-          setMessage({ type: 'error', text: 'ไม่สามารถแยกพิกัดจาก Google Maps Link ได้ กรุณาลองค้นหาชื่อร้านในช่องด้านบนอีกครั้ง' });
-          return;
         }
-      } else {
-        setMessage({ type: 'error', text: 'กรุณากรอกพิกัดโดยการค้นหาชื่อร้านในช่องค้นหาด้านบน หรือวางลิงก์ Google Maps' });
-        return;
-      return;
+      }
     }
 
     const submitCountry = getCountryFromLatLng(latVal, lngVal);
@@ -653,11 +673,11 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
         custom_about: customAbout,
       };
 
-      if (editPlace) {
+      if (editPlace && editPlace.id) {
         // Edit Mode
         const { updatePlace } = await import('@/lib/places');
         const result = await updatePlace(editPlace.id, {
-          name: form.name,
+          name: finalPlaceName,
           category: form.category,
           price_range: finalPriceRange,
           rating: parseFloat(form.rating) || 0,
@@ -671,7 +691,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
         });
 
         if (result) {
-          setMessage({ type: 'success', text: `✅ แก้ไข "${form.name}" เรียบร้อยแล้ว!` });
+          setMessage({ type: 'success', text: `✅ แก้ไข "${finalPlaceName}" เรียบร้อยแล้ว!` });
           onPlaceAdded();
         } else {
           setMessage({ type: 'error', text: 'เกิดข้อผิดพลาดในการบันทึกการแก้ไข' });
@@ -680,7 +700,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
         // Add Mode
         const { insertPlace } = await import('@/lib/places');
         const result = await insertPlace({
-          name: form.name,
+          name: finalPlaceName,
           category: form.category,
           price_range: finalPriceRange,
           rating: parseFloat(form.rating) || 0,
@@ -694,7 +714,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
         });
 
         if (result) {
-          setMessage({ type: 'success', text: `✅ เพิ่ม "${form.name}" เรียบร้อยแล้ว!` });
+          setMessage({ type: 'success', text: `✅ เพิ่ม "${finalPlaceName}" เรียบร้อยแล้ว!` });
           setForm(EMPTY_FORM);
           setGoogleData(null);
           setCustomAbout({
@@ -828,7 +848,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
             </div>
           )}
           {/* ─── AI Extract Section ─────────────────────────────────── */}
-          {!editPlace && (
+          {(!editPlace || !editPlace.id) && (
             <div className="ai-extract-section" style={{
               background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(59, 130, 246, 0.08))',
               border: '1px solid rgba(139, 92, 246, 0.2)',
@@ -1260,7 +1280,7 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
               ) : (
                 <Plus size={18} />
               )}
-              {submitting ? 'กำลังบันทึก...' : editPlace ? 'บันทึกการแก้ไข' : 'เพิ่มหมุด'}
+              {submitting ? 'กำลังบันทึก...' : (editPlace && editPlace.id) ? 'บันทึกการแก้ไข' : 'เพิ่มหมุด'}
             </button>
             {editPlace && onCancel && (
               <button
@@ -1385,26 +1405,3 @@ export default function AdminForm({ editPlace, onPlaceAdded, onCancel, onSelectE
     </div>
   );
 }
-
-const CUSTOM_ABOUT_SCHEMA = {
-  popular_for: {
-    title: 'Popular for (เป็นที่นิยมสำหรับ)',
-    options: ['Solo dining', 'Good for working on laptop', 'Dinner', 'Family dining', 'Romantic dining', 'Quick bite', 'Breakfast', 'Lunch']
-  },
-  amenities: {
-    title: 'Amenities (สิ่งอำนวยความสะดวก)',
-    options: ['Restroom', 'Wi-Fi', 'Power outlet', 'High chairs', 'Good for kids', 'Air conditioning', 'Restroom for disabled']
-  },
-  atmosphere: {
-    title: 'Atmosphere (บรรยากาศ)',
-    options: ['Cozy', 'Casual', 'Trendy', 'Romantic', 'Upscale', 'Historic/Rustic']
-  },
-  payments: {
-    title: 'Payments (การชำระเงิน)',
-    options: ['Credit cards', 'Debit cards', 'NFC mobile payments', 'Cash-only']
-  },
-  parking: {
-    title: 'Parking (ที่จอดรถ)',
-    options: ['Free parking lot', 'Paid parking lot', 'Free street parking', 'Paid street parking', 'Valet parking']
-  }
-};
