@@ -613,7 +613,9 @@ export default function HomePage() {
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
                   left: 0,
-                  minWidth: '220px',
+                  minWidth: '250px',
+                  width: 'max-content',
+                  maxWidth: '320px',
                   maxHeight: '320px',
                   overflowY: 'auto',
                   background: '#ffffff',
@@ -632,10 +634,11 @@ export default function HomePage() {
                     setIsProvinceOpen(false);
                   }}
                   style={{
-                    padding: '9px 14px',
+                    padding: '10px 14px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    gap: '12px',
                     cursor: 'pointer',
                     fontSize: '13px',
                     fontWeight: selectedProvince === 'All' ? 750 : 500,
@@ -644,8 +647,8 @@ export default function HomePage() {
                     borderBottom: '1px solid rgba(0,0,0,0.05)',
                   }}
                 >
-                  <span>📍 ทุกจังหวัด ({selectedCountry})</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10 }}>
+                  <span style={{ whiteSpace: 'nowrap' }}>📍 ทุกจังหวัด ({selectedCountry})</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10, flexShrink: 0, whiteSpace: 'nowrap' }}>
                     {countryCounts[selectedCountry] ?? 0} ร้าน
                   </span>
                 </div>
@@ -663,6 +666,7 @@ export default function HomePage() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
+                      gap: '12px',
                       cursor: 'pointer',
                       fontSize: '13px',
                       fontWeight: selectedProvince === prov ? 750 : 500,
@@ -670,8 +674,8 @@ export default function HomePage() {
                       background: selectedProvince === prov ? 'rgba(234, 179, 8, 0.08)' : 'transparent',
                     }}
                   >
-                    <span>{prov}</span>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10 }}>
+                    <span style={{ whiteSpace: 'nowrap' }}>{prov}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10, flexShrink: 0, whiteSpace: 'nowrap' }}>
                       {provinceCounts[prov] ?? 0} ร้าน
                     </span>
                   </div>
